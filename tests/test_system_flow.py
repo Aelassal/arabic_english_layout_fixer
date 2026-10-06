@@ -1,5 +1,6 @@
 """Exercise the Linux fix flow with a fake clipboard and fake key presses."""
 import os
+import sys
 import tempfile
 import time
 import unittest
@@ -45,9 +46,10 @@ class FakeClip:
         return None
 
 
+@unittest.skipUnless(sys.platform.startswith("linux"), "exercises the Linux flow")
 class LinuxFlowTests(unittest.TestCase):
     def setUp(self):
-        self.dir = tempfile.TemporaryDirectory()
+        self.dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         os.environ["LAYOUTFIX_CONFIG_DIR"] = self.dir.name
         self.notices = []
         patches = [

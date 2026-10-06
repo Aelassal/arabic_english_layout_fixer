@@ -118,8 +118,9 @@ class NativeBackendTests(unittest.TestCase):
 
 
 class ForkSafeLockTests(unittest.TestCase):
+    @unittest.skipUnless(hasattr(os, "fork"), "needs os.fork (not available on Windows)")
     def test_child_can_drop_the_lock_handle_without_unlocking_it(self):
-        with tempfile.TemporaryDirectory() as d:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
             os.environ["LAYOUTFIX_CONFIG_DIR"] = d
             try:
                 lock = instance.try_lock("fix")

@@ -7,7 +7,7 @@ from layoutfix import config
 
 class ConfigTests(unittest.TestCase):
     def setUp(self):
-        self.dir = tempfile.TemporaryDirectory()
+        self.dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         os.environ["LAYOUTFIX_CONFIG_DIR"] = self.dir.name
 
     def tearDown(self):

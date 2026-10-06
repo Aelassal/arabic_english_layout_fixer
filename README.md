@@ -20,10 +20,14 @@ Download the file for your system from **Releases**. Each release also lists SHA
   time macOS blocks it: open *System Settings → Privacy & Security* and click **Open Anyway**. Then allow it under
   *Privacy & Security → Accessibility* and *Input Monitoring*. Because the app is not notarized, macOS may ask
   again after an update. Default hotkey on Mac: **Ctrl + Shift + A**.
-- **Linux (X11):** install `xclip`, then run `ArabicLayoutFixer-Linux`.
+- **Linux (X11):** run `ArabicLayoutFixer-Linux`. Nothing else is needed (`xclip` is only used as a fallback).
 - **Linux (Wayland, e.g. GNOME):** the desktop blocks global hotkeys, so use a system shortcut instead. Install
-  `wl-clipboard` and `ydotool` (the `ydotoold` service must be running), then add a custom shortcut
+  `ydotool` (the `ydotoold` service must be running), then add a custom shortcut
   (GNOME: Settings → Keyboard → Custom Shortcuts) that runs `ArabicLayoutFixer-Linux --once`.
+  The clipboard is handled through XWayland (on by default in GNOME; `DISPLAY` must be set for the shortcut),
+  so no helper programs run and no window ever opens. If XWayland is disabled, `wl-clipboard` is used as a
+  fallback; note that on GNOME each `wl-copy`/`wl-paste` call opens a tiny window to get focus, which makes
+  the dock flicker.
 
 A green swap-arrows icon appears in the tray / menu bar. Click it for **Settings...** and **Start with computer**.
 On GNOME the tray icon needs the AppIndicator extension; the hotkey works without it.
@@ -35,10 +39,15 @@ On GNOME the tray icon needs the AppIndicator extension; the hotkey works withou
 - **Your clipboard is put back** afterwards. If the clipboard holds an image or files, Linux restores them;
   on Windows and macOS the app refuses to run and tells you, so nothing is lost.
 - In a terminal the fixed text is pasted at the cursor (a terminal cannot replace highlighted output).
+- On Linux the paste key goes out about 0.25 s after the hotkey press (so the hotkey is released first) and the
+  clipboard is put back as soon as the app has read the text. A small background process keeps serving the
+  restored clipboard until you copy something else, like `wl-copy` would.
 - Nothing is sent anywhere. The app has no network code. It does not log or store what you type, except the
   last conversion (kept for 10 minutes, in your settings folder) so the hotkey can undo it.
 - Problems are written to a log file in the settings folder (`%APPDATA%\ArabicLayoutFixer`,
-  `~/Library/Application Support/ArabicLayoutFixer` or `~/.config/arabic-layout-fixer`).
+  `~/Library/Application Support/ArabicLayoutFixer` or `~/.config/arabic-layout-fixer`). On Linux each fix
+  logs a timeline from the hotkey press (process start) to the clipboard restore: lengths and timings only,
+  never the text.
 
 ## Change the hotkey
 Tray icon → **Settings...**, tick the modifier keys (Ctrl, Alt, Win/Cmd; Shift alone is not allowed),

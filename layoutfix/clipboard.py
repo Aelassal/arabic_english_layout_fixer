@@ -1,9 +1,12 @@
 """Clipboard access that never loses what the user had copied.
 
-Linux (Wayland via wl-clipboard, X11 via xclip): read and restore the clipboard and the primary
-selection, including images and other non-text formats (one format: the most useful one).
-Windows / macOS: text only through pyperclip; the app refuses to run when the clipboard holds
-an image or files, because those cannot be restored safely.
+Linux: preferably a direct X11 selection client (plain X11, or XWayland on Wayland, where mutter bridges
+both selections) that never opens a window; wl-clipboard / xclip are fallbacks when X11 is unavailable.
+Read and restore the clipboard and the primary selection, including images and other non-text formats.
+Windows / macOS: text only through pyperclip; the app refuses to run when the clipboard holds an image
+or files, because those cannot be restored safely.
+
+A snapshot is a dict {mime/target: bytes}; an empty dict means "the clipboard was empty".
 """
 import os
 import shutil
@@ -11,7 +14,8 @@ import subprocess
 import sys
 import time
 
-from . import log, safety
+from . import instance, log, safety
+from .x11sel import TEXT_TARGETS
 
 
 def _run(cmd, data=None):
@@ -42,7 +46,8 @@ def _spawn(cmd, data):
 
 
 class _Linux:
-    """Shared logic; subclasses supply the five tool commands."""
+    """Shared logic; subclasses supply the tool commands."""
+    name = "helper"
 
     def text(self, sel):
         return self.read(sel, None).decode("utf-8", "replace")
@@ -54,27 +59,44 @@ class _Linux:
     def snapshot(self, sel):
         quick = self.fast_text(sel)                       # one call in the common (text) case
         if quick:
-            return ("text/plain", quick)
+            return {"text/plain": quick}
         types = self.types(sel)
         non_text = safety.non_text_types(types)
         if non_text:
             data = self.read(sel, non_text[0])
-            return (non_text[0], data) if data else ("empty", b"")
+            return {non_text[0]: data} if data else {}
         data = self.read(sel, None)
-        return ("text/plain", data) if data else ("empty", b"")
+        return {"text/plain": data} if data else {}
 
     def restore(self, sel, snap):
-        mime, data = snap
-        if mime == "empty":
+        if not snap:
             self.clear(sel)
         else:
+            mime, data = next(iter(snap.items()))
             self.write(sel, data, mime)
 
     def write_text(self, sel, text):
         return self.write(sel, text.encode("utf-8"), "text/plain")
 
+    def idle(self, seconds):
+        """Wait while keeping any selection we own served."""
+        time.sleep(seconds)
+
+    def mark_key_sent(self):
+        """Called just before the paste key goes out: reads after this point count as the paste."""
+
+    def wait_for_paste(self, max_wait, grace=0.1):
+        """Wait until the focused app has read our text (or `max_wait`). Returns seconds waited, seen?"""
+        time.sleep(max_wait)
+        return max_wait, None
+
+    def detach(self):
+        """Keep serving what we own after this process exits (helpers already do)."""
+        return None
+
 
 class Wayland(_Linux):
+    name = "wl-clipboard"
     _SEL = {"clipboard": [], "primary": ["-p"]}
 
     def types(self, sel):
@@ -95,6 +117,7 @@ class Wayland(_Linux):
 
 
 class X11(_Linux):
+    name = "xclip"
     _SEL = {"clipboard": "clipboard", "primary": "primary"}
 
     def types(self, sel):
@@ -110,7 +133,110 @@ class X11(_Linux):
         _spawn(["xclip", "-selection", self._SEL[sel], "-i"], b"")
 
 
+class Native(_Linux):
+    """Direct X11 selection client (layoutfix.x11sel): no helper processes, no windows."""
+    name = "x11"
+    _SEL = {"clipboard": "CLIPBOARD", "primary": "PRIMARY"}
+
+    def __init__(self, selections):
+        self.x = selections
+        self._key_sent_at = None
+
+    def text(self, sel):
+        return self.x.read_text(self._SEL[sel])
+
+    def types(self, sel):
+        return self.x.targets(self._SEL[sel])
+
+    def snapshot(self, sel):
+        """Image (if any) plus text: both are offered again on restore."""
+        targets = self.types(sel)
+        snap = {}
+        non_text = safety.non_text_types(targets)
+        if non_text:
+            res = self.x.read(self._SEL[sel], non_text[0])
+            if res and res[2]:
+                snap[non_text[0]] = res[2]
+        if any(t in targets for t in ("UTF8_STRING", "text/plain;charset=utf-8", "text/plain", "STRING")):
+            res = self.x.read(self._SEL[sel], "UTF8_STRING")
+            if res and res[2]:
+                snap["text/plain"] = res[2]
+        log.get().info("  %s targets: %d, kept %s", sel, len(targets), sorted(snap) or "nothing")
+        return snap
+
+    def restore(self, sel, snap):
+        if not snap:
+            self.x.clear(self._SEL[sel])
+            return True
+        offers = {}
+        for mime, data in snap.items():
+            if mime == "text/plain":
+                offers.update({t: data for t in TEXT_TARGETS})
+            else:
+                offers[mime] = data
+        return self.x.own(self._SEL[sel], offers)
+
+    def write_text(self, sel, text):
+        return self.x.own_text(self._SEL[sel], text)
+
+    def idle(self, seconds):
+        self.x.serve(seconds)
+
+    def mark_key_sent(self):
+        self._key_sent_at = time.monotonic()
+
+    def wait_for_paste(self, max_wait, grace=0.1, min_wait=0.15):
+        """Serve at least `min_wait` (the focused app also reads the clipboard eagerly when its owner
+        changes, and that read must not be mistaken for the paste), then until a read arrives after
+        the key was sent, then `grace` more so the app finishes reading."""
+        since = self._key_sent_at or time.monotonic()
+        started = time.monotonic()
+        self.x.serve(min_wait)
+        self.x.serve(max(0.0, max_wait - min_wait), until=lambda: bool(self.x.data_requests_since(since)))
+        seen = self.x.data_requests_since(since)
+        if seen:
+            self.x.serve(grace)                           # let the app finish reading
+        return time.monotonic() - started, (f"{seen[0][1]} as {seen[0][2]}" if seen else None)
+
+    def detach(self):
+        """Fork: the child keeps serving our selections until another app takes them over."""
+        if not self.x.owned:
+            return None
+        pid = os.fork()
+        if pid:
+            self.x.conn.sock = None                       # the child owns the connection from now on
+            return pid
+        try:
+            instance.forget_locks_in_child()
+            devnull = os.open(os.devnull, os.O_RDWR)
+            for fd in (0, 1, 2):
+                os.dup2(devnull, fd)
+            os.setsid()
+            deadline = time.monotonic() + 24 * 3600
+            while self.x.owned and time.monotonic() < deadline:
+                self.x.serve(60)
+        except BaseException:
+            pass
+        os._exit(0)
+
+
+def native_backend():
+    """Native X11 backend, or None (and a log line) when there is no X server to talk to."""
+    if not os.environ.get("DISPLAY"):
+        log.get().info("no DISPLAY: X11 selection client unavailable")
+        return None
+    try:
+        from . import x11sel
+        return Native(x11sel.connect())
+    except Exception as exc:
+        log.get().warning("X11 selection client unavailable (%s), using helper programs", exc)
+        return None
+
+
 def linux_backend(wayland: bool):
+    native = native_backend()
+    if native is not None:
+        return native
     if wayland and shutil.which("wl-paste") and shutil.which("wl-copy"):
         return Wayland()
     if not wayland and shutil.which("xclip"):

@@ -15,13 +15,15 @@ import time
 import uuid
 
 from . import clipboard, instance, safety
-from .log import get as logger, notify
+from .log import Timeline, get as logger, notify
 
 MAC = sys.platform == "darwin"
 WIN = sys.platform.startswith("win")
 WAYLAND = (not MAC and not WIN) and os.environ.get("XDG_SESSION_TYPE") == "wayland"
 
 SELECT_FIRST = "Select (highlight) some text first, then press the hotkey."
+HOTKEY_GRACE = 0.25      # seconds after the hotkey press (= process start) before we inject a key
+PASTE_WAIT = 0.6         # longest wait for the app to read our text before the clipboard is put back
 
 
 # ---------------------------------------------------------------- key presses
@@ -80,8 +82,13 @@ def _ydotool_release_modifiers():
 
 
 # ---------------------------------------------------------------------- Linux
-def _fix_linux(convert):
-    """Convert the highlighted text (primary selection) and paste with Shift+Insert."""
+def _fix_linux(convert, timeline=None):
+    """Convert the highlighted text (primary selection) and paste with Shift+Insert.
+
+    The clipboard backend is normally the windowless X11 client (through XWayland on Wayland); the
+    fallbacks (wl-clipboard / xclip) open a window per call on GNOME, which made the dock flicker.
+    """
+    timeline = timeline or Timeline()
     clip = clipboard.linux_backend(WAYLAND)
     if clip is None:
         notify("Install wl-clipboard (Wayland) or xclip (X11) to use this app on Linux.")
@@ -90,8 +97,9 @@ def _fix_linux(convert):
         notify("Wayland needs ydotool with its ydotoold service running (see the README).")
         return
 
-    logger().info("fix started (%s)", "wayland" if WAYLAND else "x11")
+    timeline.header("fix started (%s session, %s backend)" % ("wayland" if WAYLAND else "x11", clip.name))
     text = clip.text("primary")
+    timeline.mark("selection read: %d chars", len(text))
     if not text.strip():
         logger().info("result: NOTHING SELECTED, nothing changed")
         notify(SELECT_FIRST)
@@ -100,23 +108,24 @@ def _fix_linux(convert):
         notify("The selection is too long to convert safely.")
         return
     out = convert(text)
-    logger().info("selection: %d chars -> converted: %d chars (%s)", len(text), len(out),
-                  "changed" if out != text else "UNCHANGED")
+    timeline.mark("converted: %d -> %d chars (%s)", len(text), len(out), "changed" if out != text else "UNCHANGED")
     if out == text:
         logger().info("result: nothing to convert")
         return
 
-    # Every wl-clipboard call briefly opens a window on GNOME (the dock flickers): keep the calls few.
-    # Total per fix: read selection, read clipboard, write clipboard, write primary, restore clipboard.
     saved = clip.snapshot("clipboard")
+    timeline.mark("clipboard saved: %s", ", ".join(sorted(saved)) if saved else "empty")
     try:
         clip.write_text("clipboard", out)
         clip.write_text("primary", out)                   # terminals paste the primary selection
-        time.sleep(0.25)                                  # let the user let go of the hotkey
+        timeline.mark("clipboard + primary set")
+        # The user is still letting go of the hotkey: wait (serving requests), counted from the key press.
+        clip.idle(max(0.0, HOTKEY_GRACE - (time.time() - timeline.started)))
+        clip.mark_key_sent()
         if WAYLAND:
             _ydotool_release_modifiers()
             pasted = _ydotool(_LINUX_KEYCODES["shift"], _LINUX_KEYCODES["insert"])
-            logger().info("paste key (Shift+Insert) sent: %s", "ok" if pasted else "FAILED")
+            timeline.mark("paste key (Shift+Insert) sent: %s", "ok" if pasted else "FAILED")
             if not pasted:
                 notify("Could not send the paste key. Is the ydotoold service running?")
         else:
@@ -124,10 +133,13 @@ def _fix_linux(convert):
             _release_modifiers(kb)
             from pynput.keyboard import Key
             _chord(kb, Key.shift, Key.insert)
-        time.sleep(0.35)                                  # let the app read the clipboard
+            timeline.mark("paste key (Shift+Insert) sent")
+        waited, seen = clip.wait_for_paste(PASTE_WAIT)    # until the app has read our text (or PASTE_WAIT)
+        timeline.mark("app read our text: %s (waited %dms)", seen or "NOT SEEN", waited * 1000)
     finally:
         clip.restore("clipboard", saved)
-        logger().info("clipboard restored")
+        holder = clip.detach()
+        timeline.mark("clipboard restored%s", " (kept by background pid %d)" % holder if holder else "")
 
 
 # ------------------------------------------------------------ Windows / macOS
@@ -183,15 +195,17 @@ def _fix_desktop(convert):
 
 
 def fix_selection(convert):
+    timeline = Timeline()
     lock = instance.try_lock("fix")
     if lock is None:                                      # another fix is already running
-        logger().info("skipped: another fix is still running")
+        logger().info("skipped: another fix is still running (hotkey pressed %dms ago)", timeline.ms())
         return
     started = time.time()
     with lock:
         if MAC or WIN:
             _fix_desktop(convert)
         else:
-            _fix_linux(convert)
-    logger().info("fix finished in %.2fs", time.time() - started)
+            _fix_linux(convert, timeline)
+    logger().info("fix finished in %.2fs (%.2fs since the hotkey press started this process)",
+                  time.time() - started, time.time() - timeline.started)
     logger().info("-" * 40)

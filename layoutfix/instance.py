@@ -3,14 +3,20 @@ import sys
 
 from . import config
 
+_live = []                      # locks this process holds (see forget_locks_in_child)
+
 
 class Lock:
     def __init__(self, handle):
         self._handle = handle
+        if handle is not None:
+            _live.append(self)
 
     def release(self):
         if self._handle is None:
             return
+        if self in _live:
+            _live.remove(self)
         try:
             if sys.platform.startswith("win"):
                 import msvcrt
@@ -29,6 +35,18 @@ class Lock:
 
     def __exit__(self, *exc):
         self.release()
+
+
+def forget_locks_in_child():
+    """After os.fork(): close inherited lock files WITHOUT unlocking (flock is shared with the parent),
+    so a background helper never keeps the 'fix' lock and blocks the next hotkey press."""
+    for lock in list(_live):
+        try:
+            lock._handle.close()
+        except OSError:
+            pass
+        lock._handle = None
+    _live.clear()
 
 
 def try_lock(name: str):

@@ -8,7 +8,6 @@ import time
 
 from . import autostart, config, history, instance, log, system
 from .hotkey import HotkeyListener
-from .icon import make_icon
 
 
 def run_fix():
@@ -106,6 +105,7 @@ def main():
         pystray.MenuItem("Start with computer", toggle_autostart, checked=lambda item: autostart.is_enabled()),
         pystray.MenuItem("Quit", lambda icon, item: icon.stop()),
     )
+    from .icon import make_icon                 # imports Pillow: only the tray needs it
     icon = pystray.Icon("layoutfix", make_icon(64), "Arabic Layout Fixer", menu)
     log.set_notifier(lambda message: icon.notify(message, "Arabic Layout Fixer"))
 

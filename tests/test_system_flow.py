@@ -67,8 +67,11 @@ class LinuxFlowTests(unittest.TestCase):
         self.run_flow(clip)
         self.assertEqual(pasted, ["cba"])                         # converted text was on the clipboard at paste time
         self.assertEqual(clip.sel["clipboard"], image)            # the image is back
-        self.assertEqual(clip.sel["primary"], ("text", "abc"))
         self.assertEqual(self.presses, [(42, 110)])               # Shift+Insert only, never Ctrl+C
+
+    def test_never_releases_super(self):
+        self.assertNotIn(125, system._ALL_MODIFIER_CODES)
+        self.assertNotIn(126, system._ALL_MODIFIER_CODES)
 
     def test_nothing_selected_changes_nothing(self):
         clip = FakeClip(clipboard=("text", "keep me"), primary=("empty", b""))

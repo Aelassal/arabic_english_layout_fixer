@@ -66,7 +66,8 @@ def _ydotool(*codes):
 
 
 _LINUX_KEYCODES = dict(ctrl=29, shift=42, alt=56, insert=110)
-_ALL_MODIFIER_CODES = (29, 97, 42, 54, 56, 100, 125, 126)      # left/right ctrl, shift, alt, super
+_ALL_MODIFIER_CODES = (29, 97, 42, 54, 56, 100)    # left/right ctrl, shift, alt. Never Super: a lone Super
+                                                       # release opens the GNOME Activities overview.
 
 
 def _ydotool_release_modifiers():
@@ -100,11 +101,12 @@ def _fix_linux(convert):
     if out == text:
         return
 
-    saved = {sel: clip.snapshot(sel) for sel in ("clipboard", "primary")}
+    # Every wl-clipboard call briefly opens a window on GNOME, so keep the number of calls small.
+    saved = clip.snapshot("clipboard")
     try:
         clip.write_text("clipboard", out)
-        clip.write_text("primary", out)
-        time.sleep(0.4)                                   # let the user let go of the hotkey
+        clip.write_text("primary", out)                   # terminals paste the primary selection
+        time.sleep(0.25)                                  # let the user let go of the hotkey
         if WAYLAND:
             _ydotool_release_modifiers()
             if not _ydotool(_LINUX_KEYCODES["shift"], _LINUX_KEYCODES["insert"]):
@@ -114,11 +116,10 @@ def _fix_linux(convert):
             _release_modifiers(kb)
             from pynput.keyboard import Key
             _chord(kb, Key.shift, Key.insert)
-        time.sleep(0.6)                                   # some apps read the clipboard late
+        time.sleep(0.35)                                  # let the app read the clipboard
     finally:
-        for sel in ("clipboard", "primary"):
-            if clip.text(sel) == out:                     # don't clobber anything the user copied since
-                clip.restore(sel, saved[sel])
+        if clip.text("clipboard") == out:                 # don't clobber anything the user copied since
+            clip.restore("clipboard", saved)
 
 
 # ------------------------------------------------------------ Windows / macOS
@@ -176,9 +177,12 @@ def _fix_desktop(convert):
 def fix_selection(convert):
     lock = instance.try_lock("fix")
     if lock is None:                                      # another fix is already running
+        logger().info("skipped: another fix is still running")
         return
+    started = time.time()
     with lock:
         if MAC or WIN:
             _fix_desktop(convert)
         else:
             _fix_linux(convert)
+    logger().info("fix finished in %.2fs", time.time() - started)

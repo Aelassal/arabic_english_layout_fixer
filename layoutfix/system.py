@@ -90,15 +90,20 @@ def _fix_linux(convert):
         notify("Wayland needs ydotool with its ydotoold service running (see the README).")
         return
 
+    logger().info("fix started (%s)", "wayland" if WAYLAND else "x11")
     text = clip.text("primary")
     if not text.strip():
+        logger().info("result: NOTHING SELECTED, nothing changed")
         notify(SELECT_FIRST)
         return
     if len(text) > safety.MAX_CHARS:
         notify("The selection is too long to convert safely.")
         return
     out = convert(text)
+    logger().info("selection: %d chars -> converted: %d chars (%s)", len(text), len(out),
+                  "changed" if out != text else "UNCHANGED")
     if out == text:
+        logger().info("result: nothing to convert")
         return
 
     # Every wl-clipboard call briefly opens a window on GNOME (the dock flickers): keep the calls few.
@@ -110,7 +115,9 @@ def _fix_linux(convert):
         time.sleep(0.25)                                  # let the user let go of the hotkey
         if WAYLAND:
             _ydotool_release_modifiers()
-            if not _ydotool(_LINUX_KEYCODES["shift"], _LINUX_KEYCODES["insert"]):
+            pasted = _ydotool(_LINUX_KEYCODES["shift"], _LINUX_KEYCODES["insert"])
+            logger().info("paste key (Shift+Insert) sent: %s", "ok" if pasted else "FAILED")
+            if not pasted:
                 notify("Could not send the paste key. Is the ydotoold service running?")
         else:
             kb = _keyboard()
@@ -120,6 +127,7 @@ def _fix_linux(convert):
         time.sleep(0.35)                                  # let the app read the clipboard
     finally:
         clip.restore("clipboard", saved)
+        logger().info("clipboard restored")
 
 
 # ------------------------------------------------------------ Windows / macOS
@@ -186,3 +194,4 @@ def fix_selection(convert):
         else:
             _fix_linux(convert)
     logger().info("fix finished in %.2fs", time.time() - started)
+    logger().info("-" * 40)

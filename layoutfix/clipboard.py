@@ -9,25 +9,35 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 
 from . import log, safety
 
 
 def _run(cmd, data=None):
     """Run a clipboard helper and return its stdout bytes ('' on failure)."""
+    started = time.time()
     try:
         proc = subprocess.run(cmd, input=data, capture_output=True, timeout=5)
-        return proc.stdout if proc.returncode == 0 else b""
-    except (OSError, subprocess.SubprocessError):
+        out = proc.stdout if proc.returncode == 0 else b""
+        log.get().info("  %-9s %-14s rc=%s bytes=%d %.0fms", cmd[0], " ".join(cmd[1:3]), proc.returncode,
+                       len(out), (time.time() - started) * 1000)
+        return out
+    except (OSError, subprocess.SubprocessError) as exc:
+        log.get().warning("  %s failed: %s", cmd[0], exc)
         return b""
 
 
 def _spawn(cmd, data):
     """wl-copy and xclip stay alive in the background to serve the data: don't wait on their pipes."""
+    started = time.time()
     try:
-        subprocess.run(cmd, input=data, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
-        return True
-    except (OSError, subprocess.SubprocessError):
+        proc = subprocess.run(cmd, input=data, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        log.get().info("  %-9s %-14s rc=%s bytes=%d %.0fms", cmd[0], " ".join(cmd[1:3]), proc.returncode,
+                       len(data or b""), (time.time() - started) * 1000)
+        return proc.returncode == 0
+    except (OSError, subprocess.SubprocessError) as exc:
+        log.get().warning("  %s failed: %s", cmd[0], exc)
         return False
 
 

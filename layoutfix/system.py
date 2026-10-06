@@ -101,7 +101,8 @@ def _fix_linux(convert):
     if out == text:
         return
 
-    # Every wl-clipboard call briefly opens a window on GNOME, so keep the number of calls small.
+    # Every wl-clipboard call briefly opens a window on GNOME (the dock flickers): keep the calls few.
+    # Total per fix: read selection, read clipboard, write clipboard, write primary, restore clipboard.
     saved = clip.snapshot("clipboard")
     try:
         clip.write_text("clipboard", out)
@@ -118,8 +119,7 @@ def _fix_linux(convert):
             _chord(kb, Key.shift, Key.insert)
         time.sleep(0.35)                                  # let the app read the clipboard
     finally:
-        if clip.text("clipboard") == out:                 # don't clobber anything the user copied since
-            clip.restore("clipboard", saved)
+        clip.restore("clipboard", saved)
 
 
 # ------------------------------------------------------------ Windows / macOS

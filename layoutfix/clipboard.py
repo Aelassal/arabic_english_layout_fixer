@@ -37,7 +37,14 @@ class _Linux:
     def text(self, sel):
         return self.read(sel, None).decode("utf-8", "replace")
 
+    def fast_text(self, sel):
+        """Read plain text in a single helper call, or None when the backend cannot."""
+        return None
+
     def snapshot(self, sel):
+        quick = self.fast_text(sel)                       # one call in the common (text) case
+        if quick:
+            return ("text/plain", quick)
         types = self.types(sel)
         non_text = safety.non_text_types(types)
         if non_text:
@@ -62,6 +69,9 @@ class Wayland(_Linux):
 
     def types(self, sel):
         return _run(["wl-paste", "-l", *self._SEL[sel]]).decode().split()
+
+    def fast_text(self, sel):
+        return _run(["wl-paste", "-n", "-t", "text", *self._SEL[sel]]) or None
 
     def read(self, sel, mime):
         cmd = ["wl-paste", "-n", *self._SEL[sel]]

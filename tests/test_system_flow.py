@@ -80,12 +80,6 @@ class LinuxFlowTests(unittest.TestCase):
         self.assertEqual(clip.sel["clipboard"], ("text", "keep me"))
         self.assertTrue(self.notices)
 
-    def test_does_not_clobber_something_copied_meanwhile(self):
-        clip = FakeClip(clipboard=("text", "old"), primary=("text", "abc"))
-        self.on_press = lambda: clip.write_text("clipboard", "user copied this")
-        self.run_flow(clip)
-        self.assertEqual(clip.sel["clipboard"], ("text", "user copied this"))
-
     def test_clipboard_restored_even_if_convert_fails(self):
         clip = FakeClip(clipboard=("text", "old"), primary=("text", "abc"))
 

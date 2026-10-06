@@ -21,7 +21,7 @@ def main():
 
     mods, key = config.parse(config.load_hotkey())
     labels = {"ctrl": "Ctrl", "alt": "Alt", "shift": "Shift",
-              "cmd": "Cmd" if config.sys.platform == "darwin" else "Win"}
+              "cmd": "Cmd" if sys.platform == "darwin" else "Win"}
     available = [m for m in config.MODIFIERS if not (m == "alt" and sys.platform == "darwin")]
     mod_vars = {m: tk.BooleanVar(value=m in mods) for m in available}
     for i, m in enumerate(available):
@@ -36,7 +36,7 @@ def main():
 
     preview = ttk.Label(frm, font=("", 11))
     preview.grid(row=4, column=0, columnspan=4, sticky="w")
-    status = ttk.Label(frm, foreground="#b00020")
+    status = ttk.Label(frm, foreground="#b00020", wraplength=340)
     status.grid(row=5, column=0, columnspan=4, sticky="w")
 
     def current():
@@ -49,7 +49,7 @@ def main():
             return True
         except ValueError:
             preview.config(text="Hotkey:  -")
-            status.config(text="Pick at least one modifier key.")
+            status.config(text="Pick Ctrl, Alt or Win/Cmd (Shift alone is not enough).")
             return False
 
     def save():

@@ -38,8 +38,9 @@ def parse(hotkey: str):
             key = name
         else:
             raise ValueError(f"bad hotkey part: {part!r}")
-    if not mods or key is None:
-        raise ValueError("a hotkey needs at least one modifier and one key")
+    if key is None or not set(mods) & {"ctrl", "alt", "cmd"}:
+        # Shift alone would trigger on every capital letter the user types.
+        raise ValueError("a hotkey needs Ctrl, Alt or Win/Cmd plus a key")
     return mods, key
 
 
@@ -60,7 +61,7 @@ def pretty(hotkey: str) -> str:
 
 def load_hotkey() -> str:
     try:
-        hotkey = json.loads(config_path().read_text())["hotkey"]
+        hotkey = json.loads(config_path().read_text(encoding="utf-8"))["hotkey"]
         parse(hotkey)
         return hotkey
     except Exception:
@@ -71,7 +72,9 @@ def save_hotkey(hotkey: str) -> None:
     parse(hotkey)
     path = config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"hotkey": hotkey}))
+    tmp = path.with_suffix(".tmp")                      # write-then-rename so readers never see half a file
+    tmp.write_text(json.dumps({"hotkey": hotkey}), encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def last_changed() -> float:

@@ -23,7 +23,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.build(["shift", "ctrl"], "k"), "<ctrl>+<shift>+k")
 
     def test_rejects_invalid(self):
-        for bad in ["a", "<ctrl>", "<ctrl>+<alt>", "<ctrl>+ab", ""]:
+        for bad in ["a", "<ctrl>", "<ctrl>+<alt>", "<ctrl>+ab", "", "<shift>+a"]:
             with self.assertRaises(ValueError):
                 config.parse(bad)
         with self.assertRaises(ValueError):
@@ -34,6 +34,15 @@ class ConfigTests(unittest.TestCase):
         config.config_path().parent.mkdir(parents=True, exist_ok=True)
         config.config_path().write_text("{not json")
         self.assertEqual(config.load_hotkey(), config.default_hotkey())
+
+    def test_shift_alone_is_rejected_but_shift_combos_work(self):
+        with self.assertRaises(ValueError):
+            config.build(["shift"], "a")
+        self.assertEqual(config.build(["ctrl", "shift"], "a"), "<ctrl>+<shift>+a")
+
+    def test_save_leaves_no_temp_file(self):
+        config.save_hotkey("<ctrl>+<alt>+k")
+        self.assertEqual([p.name for p in config.config_path().parent.iterdir()], ["config.json"])
 
     def test_save_and_load(self):
         config.save_hotkey("<ctrl>+<shift>+f9")

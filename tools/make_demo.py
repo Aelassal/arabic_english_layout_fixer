@@ -26,9 +26,9 @@ def frame(text, font, caption, selected=False, key=False):
 
 
 frames = [
-    (frame("ثممخ", AR, "1. You typed with the Arabic layout by mistake"), 1400),
-    (frame("ثممخ", AR, "2. Select it", selected=True), 1000),
-    (frame("ثممخ", AR, "3. Press the hotkey", selected=True, key=True), 900),
+    (frame("اثممخ", AR, "1. You typed with the Arabic layout by mistake"), 1400),
+    (frame("اثممخ", AR, "2. Select it", selected=True), 1000),
+    (frame("اثممخ", AR, "3. Press the hotkey", selected=True, key=True), 900),
     (frame("hello", EN, "4. Fixed. No retyping."), 2200),
 ]
 frames[0][0].save("assets/demo.gif", save_all=True, append_images=[f for f, _ in frames[1:]],

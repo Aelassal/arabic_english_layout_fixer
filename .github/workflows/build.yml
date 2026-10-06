@@ -5,22 +5,31 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        include:
+          - { os: windows-latest, name: Windows }
+          - { os: macos-latest, name: macOS-AppleSilicon }
+          - { os: macos-15-intel, name: macOS-Intel }
+          - { os: ubuntu-22.04, name: Linux }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      # Actions are pinned to commit SHAs (the version in the comment), not movable tags.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with: { python-version: "3.12" }
       - name: Linux deps
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libgirepository1.0-dev gir1.2-ayatanaappindicator3-0.1 xclip python3-tk
-      - run: pip install -r requirements.txt pyinstaller
+        run: sudo apt-get update && sudo apt-get install -y xclip
+      - run: pip install -r requirements.txt -r requirements-build.txt
+      - run: python -c "import tkinter"
       - run: python -m unittest discover -s tests
 
       - name: Build (Windows)
@@ -32,7 +41,7 @@ jobs:
       - name: Build (Linux)
         if: runner.os == 'Linux'
         run: |
-          pyinstaller --noconsole --onefile --name ArabicLayoutFixer layoutfix/__main__.py
+          pyinstaller --onefile --name ArabicLayoutFixer layoutfix/__main__.py
           mv dist/ArabicLayoutFixer dist/ArabicLayoutFixer-Linux
 
       - name: Build (macOS .app in a .dmg)
@@ -45,15 +54,31 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :LSUIElement bool true" $APP/Contents/Info.plist
           codesign --force --deep --sign - $APP          # ad-hoc signature (required on Apple Silicon)
           mkdir dmgroot && cp -R $APP dmgroot/ && ln -s /Applications dmgroot/Applications
-          hdiutil create -volname "Arabic Layout Fixer" -srcfolder dmgroot -ov -format UDZO dist/ArabicLayoutFixer-macOS.dmg
+          hdiutil create -volname "Arabic Layout Fixer" -srcfolder dmgroot -ov -format UDZO "dist/ArabicLayoutFixer-${{ matrix.name }}.dmg"
           rm -rf dist/ArabicLayoutFixer dist/ArabicLayoutFixer.app
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: ArabicLayoutFixer-${{ runner.os }}
+          name: ArabicLayoutFixer-${{ matrix.name }}
           path: dist/*
-      - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # only this job can publish
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
-          files: dist/*
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber

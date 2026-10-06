@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arabic-layout-fixer"
+dynamic = ["version"]
+description = "Fix text typed on the wrong keyboard layout (Arabic <-> English) with one hotkey."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = ["pynput>=1.7.7", "pyperclip>=1.8.2", "pystray>=0.19.5", "Pillow>=10"]
+
+[project.scripts]
+arabic-layout-fixer = "layoutfix.app:main"
+
+[tool.setuptools]
+packages = ["layoutfix"]
+
+[tool.setuptools.dynamic]
+version = { attr = "layoutfix.__version__" }

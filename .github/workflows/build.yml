@@ -4,6 +4,9 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -20,6 +23,14 @@ jobs:
       - run: pip install -r requirements.txt pyinstaller
       - run: python -m unittest discover -s tests
       - run: pyinstaller --noconsole --onefile --name ArabicLayoutFixer layoutfix/__main__.py
+      - name: Rename per OS
+        shell: bash
+        run: |
+          cd dist
+          for f in *; do
+            ext=""; [[ "$f" == *.* ]] && ext=".${f##*.}"
+            mv "$f" "ArabicLayoutFixer-${{ runner.os }}${ext}"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: ArabicLayoutFixer-${{ runner.os }}

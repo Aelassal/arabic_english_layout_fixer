@@ -4,6 +4,8 @@ Typed in Arabic by mistake (or English with the Arabic layout on)? Select the te
 **Ctrl + Alt + A** (changeable in Settings), and it is replaced with what you meant to type. Works in both directions
 and picks the direction automatically. Free and open source.
 
+![Demo: Arabic typed by mistake is fixed with one hotkey](assets/demo.gif)
+
 `ثممخ` → `hello` &nbsp;·&nbsp; `hello` → `اثممخ`
 
 ## Install
@@ -18,6 +20,11 @@ icon in the tray / menu bar. Click it for **Settings...** (change the hotkey) an
 - **Linux (X11):** works as is. **Linux (Wayland):** global hotkeys are blocked by the desktop, so
   install `wl-clipboard` and `ydotool`, then add a system shortcut that runs
   `ArabicLayoutFixer --once` (GNOME: Settings → Keyboard → Custom Shortcuts).
+
+## Change the hotkey
+Tray icon → **Settings...**, tick the modifier keys, pick a key, press **Save**. It takes effect immediately.
+
+<img src="assets/settings.png" width="328" alt="Settings window">
 
 ## Run from source
 ```

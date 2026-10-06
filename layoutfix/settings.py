@@ -10,6 +10,7 @@ def main():
     root = tk.Tk()
     root.title("Arabic Layout Fixer - Settings")
     root.resizable(False, False)
+    root.minsize(380, 0)
     frm = ttk.Frame(root, padding=20)
     frm.grid()
 

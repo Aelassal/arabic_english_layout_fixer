@@ -35,24 +35,39 @@ jobs:
       - name: Build (Windows)
         if: runner.os == 'Windows'
         run: |
-          pyinstaller --noconsole --onefile --name ArabicLayoutFixer --icon assets/icon.png layoutfix/__main__.py
+          pyinstaller --noconsole --onefile --name ArabicLayoutFixer --icon assets/icon.png run.py
           mv dist/ArabicLayoutFixer.exe dist/ArabicLayoutFixer-Windows.exe
+
+      - name: Smoke test the built exe (launch it and check every module loaded)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\ArabicLayoutFixer-Windows.exe -ArgumentList "--selftest" -Wait -PassThru
+          Get-Content "$env:APPDATA\ArabicLayoutFixer\layoutfix.log" -ErrorAction SilentlyContinue | Select-Object -Last 15
+          if ($p.ExitCode -ne 0) { throw "self-test of the built exe failed (exit code $($p.ExitCode))" }
 
       - name: Build (Linux)
         if: runner.os == 'Linux'
         run: |
-          pyinstaller --onefile --name ArabicLayoutFixer layoutfix/__main__.py
+          pyinstaller --onefile --name ArabicLayoutFixer run.py
           mv dist/ArabicLayoutFixer dist/ArabicLayoutFixer-Linux
+
+      - name: Smoke test the built binary
+        if: runner.os == 'Linux'
+        run: ./dist/ArabicLayoutFixer-Linux --selftest
 
       - name: Build (macOS .app in a .dmg)
         if: runner.os == 'macOS'
         run: |
           pyinstaller --windowed --name ArabicLayoutFixer --icon assets/icon.png \
-            --osx-bundle-identifier com.aelassal.arabiclayoutfixer layoutfix/__main__.py
+            --osx-bundle-identifier com.aelassal.arabiclayoutfixer run.py
           APP=dist/ArabicLayoutFixer.app
           # menu-bar-only app: no Dock icon
           /usr/libexec/PlistBuddy -c "Add :LSUIElement bool true" $APP/Contents/Info.plist
           codesign --force --deep --sign - $APP          # ad-hoc signature (required on Apple Silicon)
+          # launch the built app and check every module loaded (a bundled app can crash at start-up)
+          $APP/Contents/MacOS/ArabicLayoutFixer --selftest
+          tail -n 15 "$HOME/Library/Application Support/ArabicLayoutFixer/layoutfix.log" || true
           mkdir dmgroot && cp -R $APP dmgroot/ && ln -s /Applications dmgroot/Applications
           hdiutil create -volname "Arabic Layout Fixer" -srcfolder dmgroot -ov -format UDZO "dist/ArabicLayoutFixer-${{ matrix.name }}.dmg"
           rm -rf dist/ArabicLayoutFixer dist/ArabicLayoutFixer.app

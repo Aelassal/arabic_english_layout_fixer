@@ -65,8 +65,36 @@ def _import_pystray():
     return None
 
 
+def _selftest() -> int:
+    """Import everything the app needs and run a tiny conversion. Used by CI on the *built* app,
+    because a packaged app can crash at start-up on a missing module even when the tests pass."""
+    import importlib
+    from . import core
+    modules = ["layoutfix.autostart", "layoutfix.clipboard", "layoutfix.hotkey", "layoutfix.icon",
+               "layoutfix.settings", "layoutfix.system", "layoutfix.x11sel", "PIL.Image", "pyperclip"]
+    if not sys.platform.startswith("linux") or os.environ.get("DISPLAY"):
+        modules += ["pynput.keyboard", "pystray"]        # these need a display on Linux
+    failed = []
+    for name in modules:
+        try:
+            importlib.import_module(name)
+        except Exception as exc:
+            failed.append(f"{name}: {exc!r}")
+    if core.fix("اثممخ") != "hello":
+        failed.append("core.fix gave a wrong result")
+    from .icon import make_icon
+    if make_icon(64).size != (64, 64):
+        failed.append("icon has the wrong size")
+    for line in failed:
+        log.get().error("selftest FAILED %s", line)
+    log.get().info("selftest %s (%d modules checked)", "FAILED" if failed else "ok", len(modules))
+    return 1 if failed else 0
+
+
 def main():
     log.setup()
+    if "--selftest" in sys.argv:
+        sys.exit(_selftest())
     if "--once" in sys.argv:                    # for Wayland / custom shortcuts
         if shutil.which("notify-send"):
             log.set_notifier(lambda m: subprocess.run(["notify-send", "Arabic Layout Fixer", m], timeout=5))

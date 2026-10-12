@@ -1,0 +1,65 @@
+name: Test one-line installers
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, macos-15-intel, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+
+      - name: Install (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env: { LAYOUTFIX_NO_START: "1" }
+        run: |
+          ./install.ps1
+          $exe = "$env:LOCALAPPDATA\ArabicLayoutFixer\ArabicLayoutFixer.exe"
+          $p = Start-Process -FilePath $exe -ArgumentList "--selftest" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "selftest failed ($($p.ExitCode))" }
+          if (-not (Test-Path "$([Environment]::GetFolderPath('Programs'))\Arabic Layout Fixer.lnk")) { throw "no Start menu entry" }
+          if (-not (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run').ArabicLayoutFixer) { throw "no autostart entry" }
+      - name: Uninstall (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env: { LAYOUTFIX_UNINSTALL: "1" }
+        run: |
+          ./install.ps1
+          if (Test-Path "$env:LOCALAPPDATA\ArabicLayoutFixer") { throw "folder still there" }
+
+      - name: Install (macOS)
+        if: runner.os == 'macOS'
+        env: { LAYOUTFIX_NO_START: "1" }
+        run: |
+          sh install.sh
+          "$HOME/Applications/ArabicLayoutFixer.app/Contents/MacOS/ArabicLayoutFixer" --selftest
+      - name: Uninstall (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          sh install.sh --uninstall
+          test ! -e "$HOME/Applications/ArabicLayoutFixer.app"
+
+      - name: Linux deps
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb xclip
+      - name: Install (Linux)
+        if: runner.os == 'Linux'
+        env: { LAYOUTFIX_NO_START: "1", LAYOUTFIX_NO_SHORTCUT: "1" }
+        run: |
+          sh install.sh
+          xvfb-run -a "$HOME/.local/bin/arabic-layout-fixer" --selftest
+      - name: Uninstall (Linux)
+        if: runner.os == 'Linux'
+        env: { LAYOUTFIX_NO_SHORTCUT: "1" }
+        run: |
+          sh install.sh --uninstall
+          test ! -e "$HOME/.local/bin/arabic-layout-fixer"

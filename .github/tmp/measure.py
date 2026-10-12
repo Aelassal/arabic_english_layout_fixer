@@ -10,7 +10,10 @@ def mb(path):
 def timed(cmd):
     start = time.time()
     r = subprocess.run(cmd, capture_output=True)
-    return f"rc={r.returncode} {time.time() - start:.2f}s"
+    out = f"rc={r.returncode} {time.time() - start:.2f}s"
+    if r.returncode:
+        out += " :: " + (r.stderr or r.stdout).decode(errors="replace").strip().splitlines()[-1][:300]
+    return out
 
 
 print("### " + sys.platform)

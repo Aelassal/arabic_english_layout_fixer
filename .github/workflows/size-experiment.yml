@@ -28,7 +28,7 @@ jobs:
 
       - name: Build variants
         run: |
-          EXC="--exclude-module ssl --exclude-module _ssl --exclude-module http --exclude-module urllib \
+          EXC="--exclude-module ssl --exclude-module _ssl --exclude-module http \
                --exclude-module email --exclude-module xml --exclude-module xmlrpc --exclude-module unittest \
                --exclude-module pydoc --exclude-module doctest --exclude-module sqlite3 --exclude-module _sqlite3 \
                --exclude-module lzma --exclude-module bz2 --exclude-module asyncio --exclude-module concurrent \

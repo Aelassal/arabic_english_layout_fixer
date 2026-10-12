@@ -18,6 +18,18 @@ jobs:
           - { os: macos-15-intel, name: macOS-Intel }
           - { os: ubuntu-22.04, name: Linux }
     runs-on: ${{ matrix.os }}
+    env:
+      # Nothing here is used by the app (no network code). Keeping it out of the build makes the download
+      # about 40% smaller. urllib/email/xml are NOT excluded: pathlib and others import them.
+      EXCLUDES: >-
+        --exclude-module ssl --exclude-module _ssl --exclude-module _hashlib --exclude-module http
+        --exclude-module unittest --exclude-module pydoc --exclude-module doctest
+        --exclude-module sqlite3 --exclude-module _sqlite3 --exclude-module lzma --exclude-module bz2
+        --exclude-module asyncio --exclude-module concurrent --exclude-module multiprocessing
+        --exclude-module distutils --exclude-module setuptools --exclude-module pkg_resources
+        --exclude-module curses --exclude-module readline
+        --exclude-module PIL._webp --exclude-module PIL._avif --exclude-module PIL._imagingft
+        --exclude-module PIL._imagingcms --exclude-module PIL._imagingtk
     steps:
       # Actions are pinned to commit SHAs (the version in the comment), not movable tags.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
@@ -34,38 +46,54 @@ jobs:
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
+        shell: bash
         run: |
-          pyinstaller --noconsole --onefile --name ArabicLayoutFixer --icon assets/icon.png run.py
+          # one file: simplest to download by hand
+          pyinstaller --noconsole --onefile --name ArabicLayoutFixer --icon assets/icon.png $EXCLUDES run.py
           mv dist/ArabicLayoutFixer.exe dist/ArabicLayoutFixer-Windows.exe
+          # folder build, zipped: starts about 10x faster (a one-file exe unpacks itself on every launch)
+          pyinstaller --noconsole --onedir --noconfirm --name ArabicLayoutFixer --icon assets/icon.png \
+            --distpath dist-folder --workpath build-folder $EXCLUDES run.py
+          python -c "import shutil; shutil.make_archive('dist/ArabicLayoutFixer-Windows', 'zip', 'dist-folder/ArabicLayoutFixer')"
 
-      - name: Smoke test the built exe (launch it and check every module loaded)
+      - name: Smoke test the built exe and folder (launch them and check every module loaded)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $p = Start-Process -FilePath dist\ArabicLayoutFixer-Windows.exe -ArgumentList "--selftest" -Wait -PassThru
-          Get-Content "$env:APPDATA\ArabicLayoutFixer\layoutfix.log" -ErrorAction SilentlyContinue | Select-Object -Last 15
-          if ($p.ExitCode -ne 0) { throw "self-test of the built exe failed (exit code $($p.ExitCode))" }
+          foreach ($exe in @("dist\ArabicLayoutFixer-Windows.exe", "dist-folder\ArabicLayoutFixer\ArabicLayoutFixer.exe")) {
+            $p = Start-Process -FilePath $exe -ArgumentList "--selftest" -Wait -PassThru
+            Get-Content "$env:APPDATA\ArabicLayoutFixer\layoutfix.log" -ErrorAction SilentlyContinue | Select-Object -Last 5
+            if ($p.ExitCode -ne 0) { throw "self-test of $exe failed (exit code $($p.ExitCode))" }
+          }
 
       - name: Build (Linux)
         if: runner.os == 'Linux'
         run: |
-          # pynput picks its backend with importlib, so PyInstaller cannot see the X11 one
-          pyinstaller --onefile --name ArabicLayoutFixer \
-            --hidden-import pynput.keyboard._xorg --hidden-import pynput.mouse._xorg run.py
+          # pynput picks its backend with importlib, so PyInstaller cannot see the X11 one.
+          # --strip drops debug symbols (libpython alone is 28 MB with them).
+          HID="--hidden-import pynput.keyboard._xorg --hidden-import pynput.mouse._xorg"
+          pyinstaller --onefile --strip --name ArabicLayoutFixer $HID $EXCLUDES run.py
           mv dist/ArabicLayoutFixer dist/ArabicLayoutFixer-Linux
+          # folder build, as a tarball: starts about 5x faster, which matters when a shortcut runs it on every press
+          pyinstaller --onedir --strip --noconfirm --name ArabicLayoutFixer --distpath dist-folder --workpath build-folder $HID $EXCLUDES run.py
+          tar -czf dist/ArabicLayoutFixer-Linux.tar.gz -C dist-folder ArabicLayoutFixer
 
-      - name: Smoke test the built binary
+      - name: Smoke test the built binaries
         if: runner.os == 'Linux'
         run: |
-          ./dist/ArabicLayoutFixer-Linux --selftest
-          # with an X display the tray and hotkey libraries load too
-          xvfb-run -a ./dist/ArabicLayoutFixer-Linux --selftest
+          for b in ./dist/ArabicLayoutFixer-Linux ./dist-folder/ArabicLayoutFixer/ArabicLayoutFixer; do
+            $b --selftest
+            # with an X display the tray and hotkey libraries load too
+            xvfb-run -a $b --selftest
+            # the settings window (tkinter) must open
+            xvfb-run -a bash -c "$b --settings & p=\$!; sleep 4; kill -0 \$p && kill \$p"
+          done
 
       - name: Build (macOS .app in a .dmg)
         if: runner.os == 'macOS'
         run: |
           pyinstaller --windowed --name ArabicLayoutFixer --icon assets/icon.png \
-            --osx-bundle-identifier com.aelassal.arabiclayoutfixer run.py
+            --osx-bundle-identifier com.aelassal.arabiclayoutfixer $EXCLUDES run.py
           APP=dist/ArabicLayoutFixer.app
           # menu-bar-only app: no Dock icon
           /usr/libexec/PlistBuddy -c "Add :LSUIElement bool true" $APP/Contents/Info.plist

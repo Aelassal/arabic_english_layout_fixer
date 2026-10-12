@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -28,7 +28,7 @@ jobs:
 
       - name: Build variants
         run: |
-          EXC="--exclude-module ssl --exclude-module _ssl --exclude-module http \
+          EXC="--exclude-module ssl --exclude-module _ssl --exclude-module _hashlib --exclude-module http \
                --exclude-module unittest --exclude-module pydoc --exclude-module doctest \
                --exclude-module sqlite3 --exclude-module _sqlite3 --exclude-module lzma --exclude-module bz2 \
                --exclude-module asyncio --exclude-module concurrent --exclude-module multiprocessing \

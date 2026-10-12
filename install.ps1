@@ -20,7 +20,7 @@ function Get-File($Url, $Dest) {
     for ($i = 1; $i -le 3; $i++) {
         $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
         if ($curl) {
-            & $curl.Source -L --fail --silent --show-error --connect-timeout 20 --speed-limit 2000 --speed-time 30 --progress-bar -o $Dest $Url
+            & $curl.Source -L --fail --show-error --connect-timeout 20 --speed-limit 2000 --speed-time 30 --progress-bar -o $Dest $Url
             if ($LASTEXITCODE -eq 0 -and (Test-Path $Dest)) { return }
         } else {
             try { Invoke-WebRequest -Uri $Url -OutFile $Dest -UseBasicParsing -TimeoutSec 120; return } catch { Write-Host $_.Exception.Message }
@@ -44,7 +44,7 @@ if ($env:LAYOUTFIX_UNINSTALL) {
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("alf-" + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
-    Write-Host 'Downloading Arabic Layout Fixer for Windows...'
+    Write-Host 'Downloading Arabic Layout Fixer for Windows (about 20 MB; on a slow connection this can take several minutes)...'
     $file = 'ArabicLayoutFixer-Windows.exe'
     Get-File "$Base/$file" (Join-Path $tmp $file)
     Get-File "$Base/SHA256SUMS.txt" (Join-Path $tmp 'SHA256SUMS.txt')

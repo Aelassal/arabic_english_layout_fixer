@@ -27,7 +27,7 @@ jobs:
         with: { python-version: "3.12" }
       - name: Linux deps
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y xclip
+        run: sudo apt-get update && sudo apt-get install -y xclip xvfb
       - run: pip install -r requirements.txt -r requirements-build.txt
       - run: python -c "import tkinter"
       - run: python -m unittest discover -s tests
@@ -49,12 +49,17 @@ jobs:
       - name: Build (Linux)
         if: runner.os == 'Linux'
         run: |
-          pyinstaller --onefile --name ArabicLayoutFixer run.py
+          # pynput picks its backend with importlib, so PyInstaller cannot see the X11 one
+          pyinstaller --onefile --name ArabicLayoutFixer \
+            --hidden-import pynput.keyboard._xorg --hidden-import pynput.mouse._xorg run.py
           mv dist/ArabicLayoutFixer dist/ArabicLayoutFixer-Linux
 
       - name: Smoke test the built binary
         if: runner.os == 'Linux'
-        run: ./dist/ArabicLayoutFixer-Linux --selftest
+        run: |
+          ./dist/ArabicLayoutFixer-Linux --selftest
+          # with an X display the tray and hotkey libraries load too
+          xvfb-run -a ./dist/ArabicLayoutFixer-Linux --selftest
 
       - name: Build (macOS .app in a .dmg)
         if: runner.os == 'macOS'

@@ -11,8 +11,21 @@ Works in both directions and picks the direction automatically. Free and open so
 Press the hotkey again on the converted text (within 10 minutes) to **undo** it.
 
 ## Install
-Download the file for your system from **Releases**. Each release also lists SHA256 checksums
-(`SHA256SUMS.txt`) so you can verify the download.
+
+**One line** (installs for your user only, no admin rights, and checks the download against the published
+SHA256 checksum before installing):
+
+| System | Paste this |
+|---|---|
+| Windows (PowerShell) | `irm https://raw.githubusercontent.com/Aelassal/arabic_english_layout_fixer/main/install.ps1 \| iex` |
+| macOS (Terminal) | `curl -fsSL https://raw.githubusercontent.com/Aelassal/arabic_english_layout_fixer/main/install.sh \| sh` |
+| Linux (terminal) | `curl -fsSL https://raw.githubusercontent.com/Aelassal/arabic_english_layout_fixer/main/install.sh \| sh` |
+
+The scripts are short, so you can read [install.sh](install.sh) and [install.ps1](install.ps1) first.
+To remove the app, run the same line with `--uninstall` (macOS/Linux: `... \| sh -s -- --uninstall`) or, on
+Windows, `$env:LAYOUTFIX_UNINSTALL=1` before it.
+
+**Or download by hand** from **Releases**. Each release also lists SHA256 checksums (`SHA256SUMS.txt`).
 
 - **Windows:** run `ArabicLayoutFixer-Windows.exe`. SmartScreen may warn "unknown publisher" because the
   app is not code-signed: click *More info → Run anyway*.
@@ -24,6 +37,7 @@ Download the file for your system from **Releases**. Each release also lists SHA
 - **Linux (Wayland, e.g. GNOME):** the desktop blocks global hotkeys, so use a system shortcut instead. Install
   `ydotool` (the `ydotoold` service must be running), then add a custom shortcut
   (GNOME: Settings → Keyboard → Custom Shortcuts) that runs `ArabicLayoutFixer-Linux --once`.
+  (The one-line installer adds the GNOME shortcut Ctrl+Alt+A for you.)
   The clipboard is handled through XWayland (on by default in GNOME; `DISPLAY` must be set for the shortcut),
   so no helper programs run and no window ever opens. If XWayland is disabled, `wl-clipboard` is used as a
   fallback; note that on GNOME each `wl-copy`/`wl-paste` call opens a tiny window to get focus, which makes

@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-22.04]
+        os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -41,6 +41,7 @@ jobs:
           pyinstaller --onefile --noconfirm --name base --distpath out/base $HID run.py
           pyinstaller --onefile --noconfirm --name slim --distpath out/slim $HID $EXC run.py
           pyinstaller --onedir  --noconfirm --name dir  --distpath out/dir  $HID $EXC run.py
+          pyinstaller --onefile --noconfirm --name notk --distpath out/notk $HID $EXC --exclude-module tkinter run.py
 
       - name: Measure
         run: python .github/tmp/measure.py | tee -a "$GITHUB_STEP_SUMMARY"

@@ -27,3 +27,11 @@ print("onedir zip", mb("out/dir.zip"), "MB")
 for label, cmd in (("base", f"out/base/base{exe}"), ("slim", f"out/slim/slim{exe}"), ("onedir", f"out/dir/dir/dir{exe}")):
     for i in (1, 2, 3):
         print(f"{label} selftest run {i}:", timed([cmd, "--selftest"]))
+
+print("no-tkinter onefile", mb(f"out/notk/notk{exe}"), "MB (settings window would not work)")
+files = sorted(((os.path.getsize(os.path.join(a, f)), os.path.join(a, f)) for a, _, fs in os.walk(d) for f in fs), reverse=True)
+print("biggest files in the onedir build:")
+for size, path in files[:14]:
+    print(f"  {size / 1048576:5.1f} MB  {os.path.relpath(path, d)}")
+tcl = sum(size for size, path in files if "tcl" in path.lower() or "tk" in path.lower())
+print("tcl/tk files total:", round(tcl / 1048576, 1), "MB")

@@ -43,24 +43,7 @@ jobs:
           pyinstaller --onedir  --noconfirm --name dir  --distpath out/dir  $HID $EXC run.py
 
       - name: Measure
-        run: |
-          EXE=""; [ "$RUNNER_OS" = Windows ] && EXE=.exe
-          t() { python -c "
-import subprocess,sys,time
-s=time.time(); r=subprocess.run(sys.argv[1:],capture_output=True); print(f'rc={r.returncode} {time.time()-s:.2f}s')" "$@"; }
-          {
-            echo "### ${{ matrix.os }}"
-            for f in out/base/base$EXE out/slim/slim$EXE; do python -c "import os,sys;print(sys.argv[1], round(os.path.getsize(sys.argv[1])/1048576,1),'MB')" $f; done
-            python -c "
-import shutil,os
-d='out/dir/dir'
-print('onedir total', round(sum(os.path.getsize(os.path.join(a,f)) for a,_,fs in os.walk(d) for f in fs)/1048576,1),'MB')
-shutil.make_archive('out/dir','zip',d)
-print('onedir zip', round(os.path.getsize('out/dir.zip')/1048576,1),'MB')"
-            for i in 1 2 3; do echo "base run $i: $(t ./out/base/base$EXE --selftest)"; done
-            for i in 1 2 3; do echo "slim run $i: $(t ./out/slim/slim$EXE --selftest)"; done
-            for i in 1 2 3; do echo "onedir run $i: $(t ./out/dir/dir/dir$EXE --selftest)"; done
-          } | tee -a "$GITHUB_STEP_SUMMARY"
+        run: python .github/tmp/measure.py | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Slim build still works (settings window opens)
         if: runner.os == 'Linux'

@@ -1,0 +1,32 @@
+name: Bug report
+description: Something didn't convert, crashed, or behaved oddly
+labels: [bug]
+body:
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows 10, Windows 11, macOS (Apple Silicon), macOS (Intel), Linux (Wayland), Linux (X11)]
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      placeholder: "0.3.2 (see the file name you downloaded)"
+    validations: { required: true }
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you select, which app were you in, what hotkey did you press, and what did you expect?
+    validations: { required: true }
+  - type: textarea
+    id: log
+    attributes:
+      label: Log file (optional but very helpful)
+      description: |
+        Windows: `%APPDATA%\ArabicLayoutFixer\layoutfix.log`
+        macOS: `~/Library/Application Support/ArabicLayoutFixer/layoutfix.log`
+        Linux: `~/.config/arabic-layout-fixer/layoutfix.log`
+        The log never contains the text you selected.
+      render: text

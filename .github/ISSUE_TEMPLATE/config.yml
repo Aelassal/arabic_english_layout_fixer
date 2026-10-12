@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security problem
+    url: https://github.com/Aelassal/arabic_english_layout_fixer/security/advisories/new
+    about: Please report vulnerabilities privately here.

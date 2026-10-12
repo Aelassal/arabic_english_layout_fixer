@@ -44,8 +44,8 @@ if ($env:LAYOUTFIX_UNINSTALL) {
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("alf-" + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
-    Write-Host 'Downloading Arabic Layout Fixer for Windows (about 20 MB; on a slow connection this can take several minutes)...'
-    $file = 'ArabicLayoutFixer-Windows.exe'
+    Write-Host 'Downloading Arabic Layout Fixer for Windows (about 11 MB; on a slow connection this can take several minutes)...'
+    $file = 'ArabicLayoutFixer-Windows.zip'
     Get-File "$Base/$file" (Join-Path $tmp $file)
     Get-File "$Base/SHA256SUMS.txt" (Join-Path $tmp 'SHA256SUMS.txt')
 
@@ -57,9 +57,13 @@ try {
     Write-Host 'Checksum OK.'
 
     Stop-App
+    $unpacked = Join-Path $tmp 'unpacked'
+    Expand-Archive -Path (Join-Path $tmp $file) -DestinationPath $unpacked -Force
+    if (-not (Test-Path (Join-Path $unpacked "$Name.exe"))) { throw 'the download does not contain the app' }
+    if (Test-Path $Dir) { Remove-Item $Dir -Recurse -Force }
     New-Item -ItemType Directory -Path $Dir -Force | Out-Null
-    Move-Item (Join-Path $tmp $file) $Exe -Force
-    Unblock-File $Exe -ErrorAction SilentlyContinue
+    Move-Item (Join-Path $unpacked '*') $Dir -Force
+    Get-ChildItem $Dir -Recurse -File | Unblock-File -ErrorAction SilentlyContinue
 
     # Start menu entry, and start with Windows
     $sh = New-Object -ComObject WScript.Shell

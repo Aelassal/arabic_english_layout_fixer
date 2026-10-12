@@ -56,6 +56,7 @@ GNOME_KEYS="org.gnome.settings-daemon.plugins.media-keys"
 GNOME_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/arabic-layout-fixer/"
 
 linux_uninstall() {
+    pkill -x ArabicLayoutFixer 2>/dev/null || true
     pkill -x ArabicLayoutFixer-Linux 2>/dev/null || true
     rm -rf "$HOME/.local/share/arabic-layout-fixer"
     rm -f "$HOME/.local/bin/arabic-layout-fixer" \
@@ -91,14 +92,17 @@ add_gnome_shortcut() {  # add_gnome_shortcut BIN
 linux_install() {
     case "$ARCH" in x86_64|amd64) ;; *) fail "the Linux build is for x86_64 only (this is $ARCH). Run it from source instead, see the README." ;; esac
     dir="$HOME/.local/share/arabic-layout-fixer"
-    bin="$dir/ArabicLayoutFixer-Linux"
+    bin="$dir/app/ArabicLayoutFixer"
     mkdir -p "$dir" "$HOME/.local/bin" "$HOME/.local/share/applications"
 
-    say "Downloading Arabic Layout Fixer for Linux..."
-    fetch_verified ArabicLayoutFixer-Linux "$TMP/app"
-    chmod +x "$TMP/app"
+    say "Downloading Arabic Layout Fixer for Linux (about 12 MB)..."
+    fetch_verified ArabicLayoutFixer-Linux.tar.gz "$TMP/app.tar.gz"
+    tar -xzf "$TMP/app.tar.gz" -C "$TMP" || fail "could not unpack the download"
+    [ -x "$TMP/ArabicLayoutFixer/ArabicLayoutFixer" ] || fail "the download does not contain the app"
+    pkill -x ArabicLayoutFixer 2>/dev/null || true
     pkill -x ArabicLayoutFixer-Linux 2>/dev/null || true
-    mv -f "$TMP/app" "$bin"
+    rm -rf "$dir/app" "$dir/ArabicLayoutFixer-Linux"        # also removes the single-file build of older versions
+    mv "$TMP/ArabicLayoutFixer" "$dir/app"
     ln -sf "$bin" "$HOME/.local/bin/arabic-layout-fixer"
 
     if [ -f "$dir/icon.png" ]; then :; else
@@ -166,7 +170,7 @@ mac_install() {
         x86_64) file="ArabicLayoutFixer-macOS-Intel.dmg" ;;
         *) fail "unsupported Mac processor: $ARCH" ;;
     esac
-    say "Downloading Arabic Layout Fixer for macOS ($ARCH)..."
+    say "Downloading Arabic Layout Fixer for macOS ($ARCH, about 13 MB)..."
     fetch_verified "$file" "$TMP/app.dmg"
 
     mnt="$TMP/mnt"; mkdir -p "$mnt"

@@ -27,13 +27,13 @@ Windows, `$env:LAYOUTFIX_UNINSTALL=1` before it.
 
 **Or download by hand** from **Releases**. Each release also lists SHA256 checksums (`SHA256SUMS.txt`).
 
-- **Windows:** run `ArabicLayoutFixer-Windows.exe`. SmartScreen may warn "unknown publisher" because the
+- **Windows:** run `ArabicLayoutFixer-Windows.exe` (one file, about 11 MB; `ArabicLayoutFixer-Windows.zip` is the same app as a folder, which starts faster). SmartScreen may warn "unknown publisher" because the
   app is not code-signed: click *More info → Run anyway*.
 - **macOS:** open the `.dmg` (Apple Silicon or Intel), drag the app to *Applications* and open it. The first
   time macOS blocks it: open *System Settings → Privacy & Security* and click **Open Anyway**. Then allow it under
   *Privacy & Security → Accessibility* and *Input Monitoring*. Because the app is not notarized, macOS may ask
   again after an update. Default hotkey on Mac: **Ctrl + Shift + A**.
-- **Linux (X11):** run `ArabicLayoutFixer-Linux`. Nothing else is needed (`xclip` is only used as a fallback).
+- **Linux (X11):** run `ArabicLayoutFixer-Linux` (one file, about 12 MB; `ArabicLayoutFixer-Linux.tar.gz` is the same app as a folder, which starts faster). Nothing else is needed (`xclip` is only used as a fallback).
 - **Linux (Wayland, e.g. GNOME):** the desktop blocks global hotkeys, so use a system shortcut instead. Install
   `ydotool` (the `ydotoold` service must be running), then add a custom shortcut
   (GNOME: Settings → Keyboard → Custom Shortcuts) that runs `ArabicLayoutFixer-Linux --once`.

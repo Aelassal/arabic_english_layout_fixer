@@ -74,7 +74,12 @@ jobs:
           $APP/Contents/MacOS/ArabicLayoutFixer --selftest
           tail -n 15 "$HOME/Library/Application Support/ArabicLayoutFixer/layoutfix.log" || true
           mkdir dmgroot && cp -R $APP dmgroot/ && ln -s /Applications dmgroot/Applications
-          hdiutil create -volname "Arabic Layout Fixer" -srcfolder dmgroot -ov -format UDZO "dist/ArabicLayoutFixer-${{ matrix.name }}.dmg"
+          # hdiutil sometimes fails with "Resource busy" on the runners; retry
+          for i in 1 2 3 4 5; do
+            hdiutil create -volname "Arabic Layout Fixer" -srcfolder dmgroot -ov -format UDZO "dist/ArabicLayoutFixer-${{ matrix.name }}.dmg" && break
+            [ $i -eq 5 ] && exit 1
+            sleep 10
+          done
           rm -rf dist/ArabicLayoutFixer dist/ArabicLayoutFixer.app
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4

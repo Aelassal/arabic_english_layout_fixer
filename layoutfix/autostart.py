@@ -42,8 +42,9 @@ def _file_path() -> Path:
 
 def _run_key():
     import winreg
-    return winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run",
-                          0, winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE)
+    # CreateKeyEx opens the key, and creates it on a profile that does not have it yet
+    return winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run",
+                              0, winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE)
 
 
 def is_enabled() -> bool:

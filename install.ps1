@@ -52,6 +52,7 @@ try {
     $lnk.TargetPath = $Exe
     $lnk.WorkingDirectory = $Dir
     $lnk.Save()
+    if (-not (Test-Path $RunKey)) { New-Item -Path $RunKey -Force | Out-Null }
     New-ItemProperty -Path $RunKey -Name $Name -Value ('"' + $Exe + '"') -PropertyType String -Force | Out-Null
 
     if (-not $env:LAYOUTFIX_NO_START) { Start-Process -FilePath $Exe }

@@ -5,7 +5,6 @@
 # installs it for the current user only. Read it before you run it.
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$ProgressPreference = 'SilentlyContinue'    # makes Invoke-WebRequest much faster
 
 $Repo    = 'Aelassal/arabic_english_layout_fixer'
 $Base    = if ($env:LAYOUTFIX_BASE_URL) { $env:LAYOUTFIX_BASE_URL } else { "https://github.com/$Repo/releases/latest/download" }
@@ -14,6 +13,22 @@ $Dir     = Join-Path $env:LOCALAPPDATA $Name
 $Exe     = Join-Path $Dir "$Name.exe"
 $Link    = Join-Path ([Environment]::GetFolderPath('Programs')) 'Arabic Layout Fixer.lnk'
 $RunKey  = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+
+# Download with a visible progress bar and a stall timeout. curl.exe ships with Windows 10/11;
+# Invoke-WebRequest is the fallback.
+function Get-File($Url, $Dest) {
+    for ($i = 1; $i -le 3; $i++) {
+        $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+        if ($curl) {
+            & $curl.Source -L --fail --silent --show-error --connect-timeout 20 --speed-limit 2000 --speed-time 30 --progress-bar -o $Dest $Url
+            if ($LASTEXITCODE -eq 0 -and (Test-Path $Dest)) { return }
+        } else {
+            try { Invoke-WebRequest -Uri $Url -OutFile $Dest -UseBasicParsing -TimeoutSec 120; return } catch { Write-Host $_.Exception.Message }
+        }
+        if ($i -lt 3) { Write-Host "Download failed or stalled, retrying ($i of 3)..."; Start-Sleep -Seconds 2 }
+    }
+    throw "could not download $Url (check your internet connection, VPN or proxy)"
+}
 
 function Stop-App { Get-Process -Name $Name -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 500 }
 
@@ -31,8 +46,8 @@ New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
     Write-Host 'Downloading Arabic Layout Fixer for Windows...'
     $file = 'ArabicLayoutFixer-Windows.exe'
-    Invoke-WebRequest -Uri "$Base/$file" -OutFile (Join-Path $tmp $file) -UseBasicParsing
-    Invoke-WebRequest -Uri "$Base/SHA256SUMS.txt" -OutFile (Join-Path $tmp 'SHA256SUMS.txt') -UseBasicParsing
+    Get-File "$Base/$file" (Join-Path $tmp $file)
+    Get-File "$Base/SHA256SUMS.txt" (Join-Path $tmp 'SHA256SUMS.txt')
 
     $line = Get-Content (Join-Path $tmp 'SHA256SUMS.txt') | Where-Object { $_ -match "\s\*?$([regex]::Escape($file))$" } | Select-Object -First 1
     if (-not $line) { throw "no checksum listed for $file" }

@@ -16,9 +16,15 @@ fail() { printf 'Error: %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
 download() {  # download URL DEST
-    if have curl; then curl -fsSL "$1" -o "$2"
-    elif have wget; then wget -q "$1" -O "$2"
-    else fail "curl or wget is required"; fi
+    n=0
+    while :; do
+        if have curl; then curl -fsSL "$1" -o "$2" && return 0
+        elif have wget; then wget -q "$1" -O "$2" && return 0
+        else fail "curl or wget is required"; fi
+        n=$((n + 1))
+        [ $n -lt 3 ] || fail "could not download $1"
+        sleep 2
+    done
 }
 
 sha256_of() {

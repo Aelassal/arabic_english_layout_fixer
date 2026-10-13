@@ -221,11 +221,60 @@ def _fix_linux(convert, timeline=None):
 
 
 # ------------------------------------------------------------ Windows / macOS
-def _fix_desktop(convert):
+COPY_WAIT = 0.6          # longest wait for a copy to land in the clipboard
+COPY_RETRIES = 1         # copy keys sent again when nothing was copied (copying twice is harmless)
+RELEASE_WAIT = 1.5       # longest wait for the user to let go of the hotkey (Windows/macOS)
+
+
+def _held_modifiers():
+    """Names of the modifier keys that are physically down right now (Windows/macOS), or None when the
+    state cannot be read."""
+    try:
+        if WIN:
+            import ctypes
+            user32 = ctypes.windll.user32
+            keys = (("shift", 0x10), ("ctrl", 0x11), ("alt", 0x12), ("win", 0x5B), ("win", 0x5C))
+            return sorted({name for name, vk in keys if user32.GetAsyncKeyState(vk) & 0x8000})
+        if MAC:
+            import Quartz
+            flags = Quartz.CGEventSourceFlagsState(1)            # 1 = the hardware (HID) state
+            masks = (("shift", 0x20000), ("ctrl", 0x40000), ("alt", 0x80000), ("cmd", 0x100000))
+            return [name for name, mask in masks if flags & mask]
+    except Exception:
+        logger().exception("could not read the modifier key state")
+        return None
+    return []
+
+
+def _wait_for_hotkey_release(timeline):
+    """Our Ctrl+C / Ctrl+V must not go out while the user still holds the hotkey's keys (the app would see
+    Ctrl+Alt+C and ignore it). Wait until they are really up, instead of a blind sleep."""
+    held = _held_modifiers()
+    if held is None:
+        time.sleep(0.3)
+        timeline.mark("modifier state unknown, waited 300ms")
+        return
+    start = timeline.ms()
+    for _ in range(int(RELEASE_WAIT / 0.02)):
+        if not held:
+            break
+        time.sleep(0.02)
+        held = _held_modifiers() or []
+    if held:
+        timeline.mark("still holding %s after %dms, sending anyway", "+".join(held), timeline.ms() - start)
+    else:
+        timeline.mark("hotkey keys were up after %dms", timeline.ms() - start)
+    time.sleep(0.05)
+
+
+def _fix_desktop(convert, timeline=None):
     import pyperclip
     from pynput.keyboard import Key
 
+    timeline = timeline or Timeline(started=time.time())
+    timeline.header("fix started (%s)" % ("macOS" if MAC else "Windows"))
     if clipboard.has_non_text():
+        timeline.mark("refused: the clipboard holds an image or files")
         notify("Your clipboard holds an image or files. Paste or clear it first so it is not lost.")
         return
 
@@ -238,42 +287,58 @@ def _fix_desktop(convert):
     ours = {marker}
     try:
         pyperclip.copy(marker)                            # tells us whether the copy really copied something
-        time.sleep(0.3)                                   # let the user let go of the hotkey
-        _release_modifiers(kb)
-        _chord(kb, *copy_keys)
+        timeline.mark("clipboard saved (%d chars), marker set", len(previous))
+        _wait_for_hotkey_release(timeline)                # let the user let go of the hotkey
         text = marker
-        for _ in range(12):                               # wait up to ~0.6 s for the copy to land
-            time.sleep(0.05)
-            text = pyperclip.paste()
+        for attempt in range(COPY_RETRIES + 1):
+            _release_modifiers(kb)
+            _chord(kb, *copy_keys)
+            sent = timeline.ms()
+            timeline.mark("copy key sent%s", " (retry %d)" % attempt if attempt else "")
+            for _ in range(int(COPY_WAIT / 0.05)):        # wait for the copy to land
+                time.sleep(0.05)
+                text = pyperclip.paste()
+                if text != marker:
+                    break
             if text != marker:
+                timeline.mark("copy landed after %dms: %d chars", timeline.ms() - sent, len(text))
                 break
+            timeline.mark("copy did NOT land (waited %dms)", timeline.ms() - sent)
         if text == marker or not text.strip():
             notify(SELECT_FIRST)
             return
         if safety.looks_like_line_copy(text):
+            timeline.mark("skipped: the editor copied a whole line")
             notify(SELECT_FIRST)                          # the editor copied a whole line instead
             return
         if len(text) > safety.MAX_CHARS:
+            timeline.mark("skipped: selection too long (%d chars)", len(text))
             notify("The selection is too long to convert safely.")
             return
         out = convert(text)
+        timeline.mark("converted: %d -> %d chars (%s)", len(text), len(out), "changed" if out != text else "unchanged")
         if out == text:
             return
         ours.add(out)
         pyperclip.copy(out)
         time.sleep(0.05)
         _chord(kb, *paste_keys)
+        timeline.mark("paste key sent")                   # an app gives no sign that it pasted, so no retry
         time.sleep(0.6)                                   # some apps read the clipboard late
     finally:
         try:
             if pyperclip.paste() in ours:                 # don't clobber anything the user copied since
                 pyperclip.copy(previous)
+                timeline.mark("clipboard restored")
+            else:
+                timeline.mark("clipboard left alone (changed since)")
         except Exception:
             logger().exception("could not restore the clipboard")
 
 
 def fix_selection(convert):
-    timeline = Timeline()
+    # the tray app is already running when the hotkey is pressed; only a `--once` process starts with the press
+    timeline = Timeline(started=time.time() if MAC or WIN else None)
     lock = instance.try_lock("fix")
     if lock is None:                                      # another fix is already running
         logger().info("skipped: another fix is still running (hotkey pressed %dms ago)", timeline.ms())
@@ -281,7 +346,7 @@ def fix_selection(convert):
     started = time.time()
     with lock:
         if MAC or WIN:
-            _fix_desktop(convert)
+            _fix_desktop(convert, timeline)
         else:
             try:
                 _fix_linux(convert, timeline)

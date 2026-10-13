@@ -82,6 +82,10 @@ def _selftest() -> int:
             failed.append(f"{name}: {exc!r}")
     if core.fix("اثممخ") != "hello":
         failed.append("core.fix gave a wrong result")
+    if sys.platform.startswith("win") or sys.platform == "darwin":
+        from . import system
+        if system._held_modifiers() is None:           # the real Windows/macOS key-state call must work
+            failed.append("cannot read the modifier key state")
     from .icon import make_icon
     if make_icon(64).size != (64, 64):
         failed.append("icon has the wrong size")

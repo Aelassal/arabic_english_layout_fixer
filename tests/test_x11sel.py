@@ -118,6 +118,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual((typ, fmt), (4, 32))
         self.assertTrue({"TARGETS", "TIMESTAMP", "UTF8_STRING", "text/plain", "STRING"} <= names)
         self.assertEqual(self.sel.data_requests_since(0), [])      # TARGETS is not a paste
+        self.assertEqual([r[1:] for r in self.sel.requests], [("CLIPBOARD", "TARGETS", requestor, True)])
 
         # data
         self.server.sent_events.clear()
@@ -134,6 +135,9 @@ class ServerTests(unittest.TestCase):
         self.server.selection_request(owner, requestor, clipboard, self.server.atom("image/png"), prop)
         self.sel.serve(0.2, until=lambda: self.server.sent_events)
         self.assertEqual(struct.unpack_from("<I", self.server.sent_events[-1][1], 20)[0], 0)
+        self.assertEqual([r[1:] for r in self.sel.requests][1:], [("CLIPBOARD", "UTF8_STRING", requestor, True),
+                                                                  ("CLIPBOARD", "image/png", requestor, False)])
+        self.assertEqual(self.sel.cleared, [])
 
     def test_incr_write_for_large_data(self):
         self.conn.max_data = 1000
@@ -167,6 +171,7 @@ class ServerTests(unittest.TestCase):
         self.assertNotEqual(first, second)                           # mutter re-reads TARGETS for a new owner
         self.sel.serve(0.05)                                         # the stale SelectionClear is ignored
         self.assertIn(1, self.sel.owned)
+        self.assertEqual(self.sel.cleared, [])
         self.sel.clear("PRIMARY")
         self.assertNotIn(1, self.sel.owned)
         self.assertTrue(self.wait(lambda: 1 not in self.server.owners))
@@ -178,6 +183,7 @@ class ServerTests(unittest.TestCase):
         self.server.emit(struct.pack("<BxHIII", 29, 0, 99, owner, clipboard))
         self.sel.serve(0.1, until=lambda: not self.sel.owned)
         self.assertEqual(self.sel.owned, {})
+        self.assertEqual([c[1] for c in self.sel.cleared], ["CLIPBOARD"])
 
 
 if __name__ == "__main__":

@@ -49,9 +49,13 @@ def forget_locks_in_child():
     _live.clear()
 
 
+def lock_path(name: str):
+    return config.config_path().parent / f"{name}.lock"
+
+
 def try_lock(name: str):
     """Return a Lock if nobody else holds `name`, otherwise None. Never blocks."""
-    path = config.config_path().parent / f"{name}.lock"
+    path = lock_path(name)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         handle = open(path, "a+")

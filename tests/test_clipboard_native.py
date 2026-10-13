@@ -13,8 +13,9 @@ class FakeSelections:
         self._targets = list(targets)
         self._data = data or {}
         self.owned = {}
-        self.cleared = []
+        self.cleared = []                                 # x11sel: (time, selection name); here also clear() calls
         self.served = []
+        self.requests = []
         self.serve_calls = []
 
     def targets(self, sel):
@@ -38,6 +39,9 @@ class FakeSelections:
     def clear(self, sel):
         self.cleared.append(sel)
         self.owned.pop(sel, None)
+
+    def atom_name(self, atom):
+        return atom
 
     def serve(self, seconds, until=None):
         self.serve_calls.append(seconds)
@@ -107,6 +111,32 @@ class NativeBackendTests(unittest.TestCase):
         clip.mark_key_sent()
         _waited, seen = clip.wait_for_paste(0.02)
         self.assertIsNone(seen)
+
+    def test_read_since_key_covers_every_key_sent(self):
+        x = FakeSelections()
+        clip = clipboard.Native(x)
+        self.assertIsNone(clip.read_since_key())                          # no key sent yet
+        clip.mark_key_sent()
+        first = clip._key_sent_at
+        self.assertIsNone(clip.read_since_key())
+        x.served.append((time.monotonic(), "CLIPBOARD", "TEXT"))
+        clip.mark_key_sent()                                              # a retry: the first key still counts
+        self.assertEqual(clip._first_key_at, first)
+        self.assertEqual(clip.read_since_key(), "CLIPBOARD as TEXT")
+
+    def test_report_lists_requestors_and_takeovers_relative_to_the_key(self):
+        x = FakeSelections()
+        clip = clipboard.Native(x)
+        self.assertEqual(clip.report(), "selection requests: none; taken over: none")
+        now = time.monotonic()
+        clip._first_key_at = now
+        x.requests = [(now - 0.3, "CLIPBOARD", "TARGETS", 0x1a00003, True),
+                      (now + 0.04, "CLIPBOARD", "TEXT", 0x1a00003, True),
+                      (now + 0.05, "PRIMARY", "image/png", 0x2b, False)]
+        x.cleared = [(now + 0.5, "PRIMARY")]
+        self.assertEqual(clip.report(), "selection requests: CLIPBOARD TARGETS by 0x1a00003 at -300ms, "
+                         "CLIPBOARD TEXT by 0x1a00003 at +40ms, PRIMARY image/png by 0x2b at +50ms (refused); "
+                         "taken over: PRIMARY at +500ms")
 
     def test_detach_without_ownership_does_nothing(self):
         self.assertIsNone(clipboard.Native(FakeSelections()).detach())

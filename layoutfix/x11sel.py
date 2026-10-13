@@ -295,6 +295,8 @@ class Selections:
         self.owned = {}                                         # selection atom -> (window, {target atom: bytes})
         self._incr = {}                                         # (requestor, prop) -> [data, offset]
         self.served = []                                        # (monotonic time, selection name, target name)
+        self.requests = []                                      # every request: (time, selection, target, requestor, answered?)
+        self.cleared = []                                       # (monotonic time, selection name): taken by another client
 
     # ---------------------------------------------------------------- reading
     def targets(self, selection, timeout=2.0):
@@ -384,6 +386,7 @@ class Selections:
             _t, owner, sel = _event_fields(pkt, 3)
             if sel in self.owned and self.owned[sel][0] == owner:
                 del self.owned[sel]
+                self.cleared.append((time.monotonic(), self.conn.atom_name(sel)))
         elif code == PROPERTY_NOTIFY and pkt[16] == 1:         # requestor deleted a chunk: send the next
             self._incr_continue(_event_fields(pkt, 2))
 
@@ -412,6 +415,7 @@ class Selections:
                     conn.change_property(requestor, prop, target, 8, data)
                 answered = prop
                 self.served.append((time.monotonic(), conn.atom_name(sel), conn.atom_name(target)))
+        self.requests.append((time.monotonic(), conn.atom_name(sel), conn.atom_name(target), requestor, bool(answered)))
         notify = struct.pack("<BxHIIIII", SELECTION_NOTIFY, 0, timestamp, requestor, sel, target, answered)
         conn.send_event(requestor, notify + b"\0" * (32 - len(notify)))
 

@@ -90,6 +90,14 @@ class _Linux:
         time.sleep(max_wait)
         return max_wait, None
 
+    def read_since_key(self):
+        """'SELECTION as TARGET' if anything read our text since the first paste key, else None."""
+        return None
+
+    def report(self):
+        """One line about who asked for our selections and when (for the log), '' when unknown."""
+        return ""
+
     def detach(self):
         """Keep serving what we own after this process exits (helpers already do)."""
         return None
@@ -140,7 +148,8 @@ class Native(_Linux):
 
     def __init__(self, selections):
         self.x = selections
-        self._key_sent_at = None
+        self._key_sent_at = None                          # the latest paste key
+        self._first_key_at = None                         # the first one: reads after it mean the paste landed
 
     def text(self, sel):
         return self.x.read_text(self._SEL[sel])
@@ -184,6 +193,8 @@ class Native(_Linux):
 
     def mark_key_sent(self):
         self._key_sent_at = time.monotonic()
+        if self._first_key_at is None:
+            self._first_key_at = self._key_sent_at
 
     def wait_for_paste(self, max_wait, grace=0.1, min_wait=0.15):
         """Serve at least `min_wait` (the focused app also reads the clipboard eagerly when its owner
@@ -197,6 +208,22 @@ class Native(_Linux):
         if seen:
             self.x.serve(grace)                           # let the app finish reading
         return time.monotonic() - started, (f"{seen[0][1]} as {seen[0][2]}" if seen else None)
+
+    def read_since_key(self):
+        if self._first_key_at is None:
+            return None
+        seen = self.x.data_requests_since(self._first_key_at)
+        return f"{seen[0][1]} as {seen[0][2]}" if seen else None
+
+    def report(self):
+        """Every selection request (selection, target, requestor window id) and every takeover seen by
+        this process, timed relative to the first paste key (negative = before it). Never any data."""
+        origin = self._first_key_at or time.monotonic()
+        rel = lambda t: "%+dms" % round((t - origin) * 1000)
+        asked = ["%s %s by 0x%x at %s%s" % (sel, tgt, req, rel(t), "" if ok else " (refused)")
+                 for t, sel, tgt, req, ok in self.x.requests]
+        lost = ["%s at %s" % (sel, rel(t)) for t, sel in self.x.cleared]
+        return "selection requests: %s; taken over: %s" % (", ".join(asked) or "none", ", ".join(lost) or "none")
 
     def detach(self):
         """Fork: the child keeps serving our selections until another app takes them over."""
@@ -212,9 +239,14 @@ class Native(_Linux):
             for fd in (0, 1, 2):
                 os.dup2(devnull, fd)
             os.setsid()
-            deadline = time.monotonic() + 24 * 3600
+            started = time.monotonic()
+            deadline = started + 24 * 3600
             while self.x.owned and time.monotonic() < deadline:
-                self.x.serve(60)
+                before = set(self.x.owned)
+                self.x.serve(60, until=lambda: set(self.x.owned) != before)
+                for sel in before - set(self.x.owned):    # one line per selection another app took over
+                    log.get().info("holder pid=%d: %s taken over by another app after %.1fs",
+                                   os.getpid(), self.x.conn.atom_name(sel), time.monotonic() - started)
         except BaseException:
             pass
         os._exit(0)

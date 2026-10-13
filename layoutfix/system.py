@@ -24,6 +24,8 @@ WAYLAND = (not MAC and not WIN) and os.environ.get("XDG_SESSION_TYPE") == "wayla
 SELECT_FIRST = "Select (highlight) some text first, then press the hotkey."
 HOTKEY_GRACE = 0.25      # seconds after the hotkey press (= process start) before we inject a key
 PASTE_WAIT = 0.6         # longest wait for the app to read our text before the clipboard is put back
+PASTE_RETRIES = 1        # paste keys sent again when nobody read our text (never once the paste landed)
+RETRY_GRACE = 0.3        # seconds between offering the selection again and the retried paste key
 
 
 # ---------------------------------------------------------------- key presses
@@ -81,7 +83,65 @@ def _ydotool_release_modifiers():
         pass
 
 
+def _press_paste_key():
+    """Shift+Insert, with the modifier keys released first. Returns (sent ok?, timing note)."""
+    if WAYLAND:
+        t0 = time.monotonic()
+        _ydotool_release_modifiers()
+        t1 = time.monotonic()
+        pasted = _ydotool(_LINUX_KEYCODES["shift"], _LINUX_KEYCODES["insert"])
+        return pasted, "ydotool %dms + %dms" % ((t1 - t0) * 1000, (time.monotonic() - t1) * 1000)
+    kb = _keyboard()
+    _release_modifiers(kb)
+    from pynput.keyboard import Key
+    _chord(kb, Key.shift, Key.insert)
+    return True, "pynput"
+
+
 # ---------------------------------------------------------------------- Linux
+def _is_fix_process(args):
+    """Does this /proc cmdline (list of bytes) belong to a `--once` run of this app (a fix, or the
+    background holder it forked)?"""
+    return b"--once" in args and any(b"layoutfix" in a.lower() for a in args)
+
+
+def _other_fix_processes():
+    """How many other `--once` processes of ours are alive: holders from earlier fixes keep serving the
+    restored clipboard, and one could be a fix that is still running. -1 when /proc is unreadable."""
+    me, uid = os.getpid(), os.getuid()
+    count = 0
+    try:
+        pids = [p for p in os.listdir("/proc") if p.isdigit() and int(p) != me]
+    except OSError:
+        return -1
+    for pid in pids:
+        try:
+            if os.stat(f"/proc/{pid}").st_uid != uid:
+                continue
+            with open(f"/proc/{pid}/cmdline", "rb") as f:
+                args = f.read().split(b"\0")
+        except OSError:
+            continue
+        if _is_fix_process(args):
+            count += 1
+    return count
+
+
+def _previous_fix_age():
+    """Seconds since the last fix finished (the fix lock file is touched at the end of each fix), or None."""
+    try:
+        return time.time() - os.stat(instance.lock_path("fix")).st_mtime
+    except OSError:
+        return None
+
+
+def _mark_fix_finished():
+    try:
+        os.utime(instance.lock_path("fix"))
+    except OSError:
+        pass
+
+
 def _fix_linux(convert, timeline=None):
     """Convert the highlighted text (primary selection) and paste with Shift+Insert.
 
@@ -98,6 +158,9 @@ def _fix_linux(convert, timeline=None):
         return
 
     timeline.header("fix started (%s session, %s backend)" % ("wayland" if WAYLAND else "x11", clip.name))
+    age = _previous_fix_age()
+    timeline.mark("previous fix finished %s ago, other --once processes alive: %d",
+                  "%.1fs" % age if age is not None else "?", _other_fix_processes())
     text = clip.text("primary")
     timeline.mark("selection read: %d chars", len(text))
     if not text.strip():
@@ -122,20 +185,35 @@ def _fix_linux(convert, timeline=None):
         # The user is still letting go of the hotkey: wait (serving requests), counted from the key press.
         clip.idle(max(0.0, HOTKEY_GRACE - (time.time() - timeline.started)))
         clip.mark_key_sent()
-        if WAYLAND:
-            _ydotool_release_modifiers()
-            pasted = _ydotool(_LINUX_KEYCODES["shift"], _LINUX_KEYCODES["insert"])
-            timeline.mark("paste key (Shift+Insert) sent: %s", "ok" if pasted else "FAILED")
-            if not pasted:
-                notify("Could not send the paste key. Is the ydotoold service running?")
-        else:
-            kb = _keyboard()
-            _release_modifiers(kb)
-            from pynput.keyboard import Key
-            _chord(kb, Key.shift, Key.insert)
-            timeline.mark("paste key (Shift+Insert) sent")
+        pasted, note = _press_paste_key()
+        timeline.mark("paste key (Shift+Insert) sent: %s (%s)", "ok" if pasted else "FAILED", note)
+        if not pasted:
+            notify("Could not send the paste key. Is the ydotoold service running?")
         waited, seen = clip.wait_for_paste(PASTE_WAIT)    # until the app has read our text (or PASTE_WAIT)
         timeline.mark("app read our text: %s (waited %dms)", seen or "NOT SEEN", waited * 1000)
+        for attempt in range(1, PASTE_RETRIES + 1):
+            if seen or not pasted:
+                break
+            # Nobody asked for our text, so the key did not paste: an app can only paste what it reads
+            # from the selection owner, and that is us. Offer the selection again from a fresh owner
+            # window (the compositor re-reads TARGETS and hands the focused app a new offer), give a
+            # hotkey modifier that is still held time to go up, and press the paste key once more.
+            clip.write_text("clipboard", out)
+            clip.write_text("primary", out)
+            clip.idle(RETRY_GRACE)
+            late = clip.read_since_key()
+            if late:                                      # the first paste landed after all: never twice
+                timeline.mark("retry %d cancelled: our text was read late (%s)", attempt, late)
+                break
+            clip.mark_key_sent()
+            pasted, note = _press_paste_key()
+            timeline.mark("retry %d: selection set again, paste key sent: %s (%s)", attempt,
+                          "ok" if pasted else "FAILED", note)
+            waited, seen = clip.wait_for_paste(PASTE_WAIT)
+            timeline.mark("app read our text: %s (waited %dms)", seen or "NOT SEEN", waited * 1000)
+        report = clip.report()                            # who asked for our selections, and when
+        if report:
+            timeline.mark("%s", report)
     finally:
         clip.restore("clipboard", saved)
         holder = clip.detach()
@@ -205,7 +283,10 @@ def fix_selection(convert):
         if MAC or WIN:
             _fix_desktop(convert)
         else:
-            _fix_linux(convert, timeline)
+            try:
+                _fix_linux(convert, timeline)
+            finally:
+                _mark_fix_finished()
     logger().info("fix finished in %.2fs (%.2fs since the hotkey press started this process)",
                   time.time() - started, time.time() - timeline.started)
     logger().info("-" * 40)

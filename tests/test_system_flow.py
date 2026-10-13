@@ -16,8 +16,10 @@ class FakeClip:
     def __init__(self, clipboard, primary):
         self.sel = {"clipboard": clipboard, "primary": primary}   # snapshots: {mime: bytes}
         self.idled = []
-        self.key_marked = False
-        self.paste_seen = "CLIPBOARD as UTF8_STRING"
+        self.key_marked = 0
+        self.paste_seen = ["CLIPBOARD as UTF8_STRING"]           # one answer per wait_for_paste call
+        self.late_read = None                                   # answer of read_since_key
+        self.writes = []                                        # (selection, text) in order
         self.detached = 0
 
     def text(self, sel):
@@ -31,15 +33,22 @@ class FakeClip:
 
     def write_text(self, sel, text):
         self.sel[sel] = {"text/plain": text.encode()}
+        self.writes.append((sel, text))
 
     def idle(self, seconds):
         self.idled.append(seconds)
 
     def mark_key_sent(self):
-        self.key_marked = True
+        self.key_marked += 1
 
     def wait_for_paste(self, max_wait, grace=0.1):
-        return 0.01, self.paste_seen
+        return 0.01, self.paste_seen.pop(0) if len(self.paste_seen) > 1 else self.paste_seen[0]
+
+    def read_since_key(self):
+        return self.late_read
+
+    def report(self):
+        return ""
 
     def detach(self):
         self.detached += 1
@@ -91,8 +100,59 @@ class LinuxFlowTests(unittest.TestCase):
         self.assertEqual(clip.sel["clipboard"], image)            # the image is back
         self.assertEqual(clip.sel["primary"], {"text/plain": b"cba"})   # terminals paste PRIMARY
         self.assertEqual(self.presses, [(42, 110)])               # Shift+Insert only, never Ctrl+C
-        self.assertTrue(clip.key_marked)
+        self.assertEqual(clip.key_marked, 1)
         self.assertEqual(clip.detached, 1)                        # restored data is kept served
+
+    def test_paste_key_is_sent_again_when_nobody_read_our_text(self):
+        clip = FakeClip(clipboard={"text/plain": b"old"}, primary={"text/plain": b"abc"})
+        clip.paste_seen = [None, "CLIPBOARD as TEXT"]             # first paste missed, second landed
+        self.run_flow(clip)
+        self.assertEqual(self.presses, [(42, 110), (42, 110)])
+        self.assertEqual(clip.key_marked, 2)
+        self.assertEqual(clip.writes, [("clipboard", "cba"), ("primary", "cba"),
+                                       ("clipboard", "cba"), ("primary", "cba")])   # offered again first
+        self.assertEqual(clip.idled[1], system.RETRY_GRACE)
+        self.assertEqual(clip.sel["clipboard"], {"text/plain": b"old"})
+        self.assertEqual(clip.detached, 1)
+
+    def test_no_second_paste_once_the_app_read_our_text(self):
+        clip = FakeClip(clipboard={}, primary={"text/plain": b"abc"})
+        self.run_flow(clip)
+        self.assertEqual(len(self.presses), 1)
+        self.presses.clear()
+        clip = FakeClip(clipboard={}, primary={"text/plain": b"abc"})
+        clip.paste_seen = [None]
+        clip.late_read = "CLIPBOARD as TEXT"                      # read after the wait, before the retry key
+        self.run_flow(clip)
+        self.assertEqual(len(self.presses), 1)
+        self.assertEqual(clip.key_marked, 1)
+
+    def test_retries_are_bounded_and_skipped_when_the_key_could_not_be_sent(self):
+        clip = FakeClip(clipboard={}, primary={"text/plain": b"abc"})
+        clip.paste_seen = [None]
+        self.run_flow(clip)
+        self.assertEqual(len(self.presses), 1 + system.PASTE_RETRIES)
+        clip = FakeClip(clipboard={}, primary={"text/plain": b"abc"})
+        clip.paste_seen = [None]
+        with mock.patch.object(system, "_ydotool", lambda *codes: False):
+            self.run_flow(clip)
+        self.assertEqual(clip.key_marked, 1)                      # no retry after a failed ydotool call
+        self.assertTrue(self.notices)
+
+    def test_fix_process_detection_by_cmdline(self):
+        self.assertTrue(system._is_fix_process([b"python3", b"-m", b"layoutfix", b"--once"]))
+        self.assertTrue(system._is_fix_process([b"/opt/app/ArabicLayoutFixer", b"--once"]))
+        self.assertFalse(system._is_fix_process([b"/opt/app/ArabicLayoutFixer"]))          # the tray app
+        self.assertFalse(system._is_fix_process([b"sh", b"-c", b"something --once"]))
+        self.assertGreaterEqual(system._other_fix_processes(), 0)
+
+    def test_fix_lock_file_is_touched_when_a_fix_ends(self):
+        clip = FakeClip(clipboard={}, primary={"text/plain": b"abc"})
+        with mock.patch.object(system.clipboard, "linux_backend", lambda wayland: clip):
+            system.fix_selection(lambda t: t[::-1])
+        age = system._previous_fix_age()
+        self.assertIsNotNone(age)
+        self.assertLess(age, 5)
 
     def test_never_releases_super(self):
         self.assertNotIn(125, system._ALL_MODIFIER_CODES)

@@ -54,14 +54,16 @@ On GNOME the tray icon needs the AppIndicator extension; the hotkey works withou
   on Windows and macOS the app refuses to run and tells you, so nothing is lost.
 - In a terminal the fixed text is pasted at the cursor (a terminal cannot replace highlighted output).
 - On Linux the paste key goes out about 0.25 s after the hotkey press (so the hotkey is released first) and the
-  clipboard is put back as soon as the app has read the text. A small background process keeps serving the
-  restored clipboard until you copy something else, like `wl-copy` would.
+  clipboard is put back as soon as the app has read the text. If no app has read the text after 0.6 s (the paste
+  key was swallowed, e.g. because a hotkey key was still held), the text is offered again and the paste key is
+  sent once more; it is never sent again once the app has read the text, so nothing is pasted twice. A small
+  background process keeps serving the restored clipboard until you copy something else, like `wl-copy` would.
 - Nothing is sent anywhere. The app has no network code. It does not log or store what you type, except the
   last conversion (kept for 10 minutes, in your settings folder) so the hotkey can undo it.
 - Problems are written to a log file in the settings folder (`%APPDATA%\ArabicLayoutFixer`,
   `~/Library/Application Support/ArabicLayoutFixer` or `~/.config/arabic-layout-fixer`). On Linux each fix
-  logs a timeline from the hotkey press (process start) to the clipboard restore: lengths and timings only,
-  never the text.
+  logs a timeline from the hotkey press (process start) to the clipboard restore: lengths, timings and which
+  window asked for the text (an X11 window id), never the text itself.
 
 ## Change the hotkey
 Tray icon → **Settings...**, tick the modifier keys (Ctrl, Alt, Win/Cmd; Shift alone is not allowed),

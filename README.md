@@ -31,8 +31,17 @@ curl -fsSL https://raw.githubusercontent.com/Aelassal/arabic_english_layout_fixe
 ```
 
 The scripts are short, so you can read [install.sh](https://github.com/Aelassal/arabic_english_layout_fixer/blob/main/install.sh) and [install.ps1](https://github.com/Aelassal/arabic_english_layout_fixer/blob/main/install.ps1) first.
-To remove the app, run the same line with `--uninstall` (macOS/Linux: `... \| sh -s -- --uninstall`) or, on
-Windows, `$env:LAYOUTFIX_UNINSTALL=1` before it.
+To remove the app, run the same line again with `--uninstall`:
+
+macOS / Linux:
+```
+curl -fsSL https://raw.githubusercontent.com/Aelassal/arabic_english_layout_fixer/main/install.sh | sh -s -- --uninstall
+```
+
+Windows (PowerShell):
+```
+$env:LAYOUTFIX_UNINSTALL=1; irm https://raw.githubusercontent.com/Aelassal/arabic_english_layout_fixer/main/install.ps1 | iex
+```
 
 **Or with Python** (a tiny download from PyPI, the same on all three systems; also avoids the
 "unknown publisher" prompt, because nothing unsigned is run):

@@ -26,6 +26,16 @@ def _write(data: dict) -> None:
     os.replace(tmp, path)
 
 
+def purge_expired() -> None:
+    """Delete the saved conversion once it is older than the undo window, so the text does not stay on disk."""
+    try:
+        entry = json.loads(_path().read_text(encoding="utf-8"))
+        if time.time() - entry["t"] >= TTL_SECONDS:
+            _path().unlink(missing_ok=True)
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+
+
 def convert(text: str) -> str:
     """core.fix with undo: converting the previous result gives back the original text."""
     try:
@@ -35,6 +45,7 @@ def convert(text: str) -> str:
             return entry["src"]
     except (OSError, ValueError, KeyError, TypeError):
         pass
+    purge_expired()
     out = core.fix(text)
     if len(text) <= MAX_CHARS and out != text:
         try:

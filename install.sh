@@ -86,7 +86,7 @@ add_gnome_shortcut() {  # add_gnome_shortcut BIN
     esac
     slot="$GNOME_KEYS.custom-keybinding:$GNOME_PATH"
     gsettings set "$slot" name "Arabic Layout Fixer"
-    gsettings set "$slot" command "$1 --once"
+    gsettings set "$slot" command "\"$1\" --once"        # quoted: the path may contain spaces
     gsettings set "$slot" binding "<Control><Alt>a"
 }
 

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,8 @@ name = "arabic-layout-fixer"
 dynamic = ["version"]
 description = "Fix text typed on the wrong keyboard layout (Arabic <-> English) with one hotkey."
 readme = { file = "README.md", content-type = "text/markdown" }
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Abdulrahman Elassal" }]
 keywords = ["arabic", "keyboard-layout", "wrong-layout", "hotkey", "tray", "productivity", "clipboard"]
 classifiers = [
@@ -16,16 +17,16 @@ classifiers = [
     "Environment :: MacOS X",
     "Environment :: Win32 (MS Windows)",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
     "Natural Language :: Arabic",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
     "Topic :: Utilities",
 ]
 requires-python = ">=3.9"
-dependencies = ["pynput>=1.7.7", "pyperclip>=1.8.2", "pystray>=0.19.5", "Pillow>=10"]
+dependencies = ["pynput>=1.8.2", "pyperclip>=1.8.2", "pystray>=0.19.5", "Pillow>=10"]
 
 [project.urls]
 Homepage = "https://github.com/Aelassal/arabic_english_layout_fixer"

@@ -35,12 +35,17 @@ On Linux the Settings window needs Tk: `sudo apt install python3-tk` (Debian/Ubu
 
 **Or download by hand** from **Releases**. Each release also lists SHA256 checksums (`SHA256SUMS.txt`).
 
-- **Windows:** run `ArabicLayoutFixer-Windows.exe` (one file, about 11 MB; `ArabicLayoutFixer-Windows.zip` is the same app as a folder, which starts faster). SmartScreen may warn "unknown publisher" because the
-  app is not code-signed: click *More info → Run anyway*.
+- **Windows:** run `ArabicLayoutFixer-Windows.exe` (one file, about 11 MB; `ArabicLayoutFixer-Windows.zip` is the same
+  app as a folder, which starts faster). The app is not code-signed, so SmartScreen may warn "unknown publisher":
+  click *More info → Run anyway*. If **Smart App Control** is switched on (Windows Security → App & browser control),
+  Windows blocks unsigned programs with no way to override; use the Python install above instead (Python itself is
+  signed), or wait for a signed release.
+  The app cannot type into windows that run **as administrator** (Windows blocks it); the fix then does nothing.
 - **macOS:** open the `.dmg` (Apple Silicon or Intel), drag the app to *Applications* and open it. The first
   time macOS blocks it: open *System Settings → Privacy & Security* and click **Open Anyway**. Then allow it under
   *Privacy & Security → Accessibility* and *Input Monitoring*. Because the app is not notarized, macOS may ask
-  again after an update. Default hotkey on Mac: **Ctrl + Shift + A**.
+  again after an update. The one-line installer downloads with `curl`, which macOS does not flag, so Gatekeeper's
+  usual check does not run for it: only use it if you trust this repository (read `install.sh` first). Default hotkey on Mac: **Ctrl + Shift + A**.
 - **Linux (X11):** run `ArabicLayoutFixer-Linux` (one file, about 12 MB; `ArabicLayoutFixer-Linux.tar.gz` is the same app as a folder, which starts faster). Nothing else is needed (`xclip` is only used as a fallback).
 - **Linux (Wayland, e.g. GNOME):** the desktop blocks global hotkeys, so use a system shortcut instead. Install
   `ydotool` (the `ydotoold` service must be running), then add a custom shortcut
@@ -66,6 +71,8 @@ On GNOME the tray icon needs the AppIndicator extension; the hotkey works withou
   key was swallowed, e.g. because a hotkey key was still held), the text is offered again and the paste key is
   sent once more; it is never sent again once the app has read the text, so nothing is pasted twice. A small
   background process keeps serving the restored clipboard until you copy something else, like `wl-copy` would.
+- On Windows and macOS the selected text briefly passes through the system clipboard, so Windows Clipboard History / cloud
+  clipboard or a clipboard-manager app may record it. Turn them off before fixing sensitive text (passwords, keys).
 - Nothing is sent anywhere. The app has no network code. It does not log or store what you type, except the
   last conversion (kept for 10 minutes, in your settings folder) so the hotkey can undo it.
 - Problems are written to a log file in the settings folder (`%APPDATA%\ArabicLayoutFixer`,

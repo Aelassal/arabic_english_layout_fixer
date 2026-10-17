@@ -1,7 +1,9 @@
 import os
+import time
 import plistlib
 import tempfile
 import unittest
+from unittest import mock
 
 from layoutfix import autostart, config, history, instance, safety
 
@@ -62,6 +64,16 @@ class InstanceAndHistoryTests(unittest.TestCase):
         self.assertNotEqual(converted, mixed)
         self.assertEqual(history.convert(converted), mixed)        # second press undoes it
         self.assertNotEqual(history.convert(mixed), mixed)         # and the undo entry is consumed
+
+    def test_expired_undo_entry_is_deleted_from_disk(self):
+        history.convert("hello")
+        self.assertTrue(history._path().exists())
+        history.purge_expired()
+        self.assertTrue(history._path().exists())                  # still inside the 10 minutes
+        later = time.time() + history.TTL_SECONDS + 1
+        with mock.patch.object(history.time, "time", lambda: later):
+            history.purge_expired()
+        self.assertFalse(history._path().exists())                 # the selected text is gone from disk
 
     def test_history_file_is_private_and_corruption_is_ignored(self):
         history.convert("hello")

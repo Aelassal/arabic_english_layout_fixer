@@ -74,11 +74,21 @@ try {
     if (-not (Test-Path $RunKey)) { New-Item -Path $RunKey -Force | Out-Null }
     New-ItemProperty -Path $RunKey -Name $Name -Value ('"' + $Exe + '"') -PropertyType String -Force | Out-Null
 
-    if (-not $env:LAYOUTFIX_NO_START) { Start-Process -FilePath $Exe }
+    $started = $true
+    if (-not $env:LAYOUTFIX_NO_START) {
+        try { Start-Process -FilePath $Exe -ErrorAction Stop }
+        catch { $started = $false }
+    }
     Write-Host ''
     Write-Host 'Done. Look for the green icon in the tray (click ^ if it is hidden).'
     Write-Host 'Select some text and press Ctrl+Alt+A. It also starts with Windows.'
     Write-Host 'If Windows shows "unknown publisher" (the app is not code-signed yet), choose More info > Run anyway.'
+    if (-not $started) {
+        Write-Host ''
+        Write-Host 'Installed, but Windows would not start it (Access is denied). The app is not code-signed yet, so Smart App Control'
+        Write-Host 'or SmartScreen may be blocking it. Try opening it from the Start menu (More info > Run anyway), or install the'
+        Write-Host 'Python version instead, which Smart App Control allows:   pipx install arabic-layout-fixer'
+    }
 }
 finally {
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue

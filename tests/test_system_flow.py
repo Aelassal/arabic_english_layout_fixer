@@ -21,6 +21,10 @@ class FakeClip:
         self.late_read = None                                   # answer of read_since_key
         self.writes = []                                        # (selection, text) in order
         self.detached = 0
+        self.taken_over = False                                 # another app copied something meanwhile
+
+    def owns(self, sel):
+        return not self.taken_over
 
     def text(self, sel):
         return self.sel[sel].get("text/plain", b"").decode()
@@ -197,6 +201,27 @@ class LinuxFlowTests(unittest.TestCase):
         self.run_flow(clip)
         self.assertEqual(self.presses, [])
         self.assertTrue(self.notices)
+
+    def test_clipboard_is_not_restored_over_a_copy_made_during_the_fix(self):
+        clip = FakeClip(clipboard={"text/plain": b"old"}, primary={"text/plain": b"abc"})
+        clip.taken_over = True                                    # the user pressed Ctrl+C in another app
+        self.run_flow(clip)
+        # the restore did not run: the clipboard still holds what was there when the fix ended, not the old snapshot
+        self.assertEqual(clip.sel["clipboard"], {"text/plain": b"cba"})
+        self.assertNotEqual(clip.sel["clipboard"], {"text/plain": b"old"})
+
+    def test_ydotool_socket_is_found_in_either_place(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("YDOTOOL_SOCKET", None)
+            runtime = "/run/user/%d/.ydotool_socket" % os.getuid()
+            with mock.patch.object(system.os.path, "exists", lambda p: p == "/tmp/.ydotool_socket"):
+                self.assertEqual(system._ydotool_socket(), "/tmp/.ydotool_socket")
+            with mock.patch.object(system.os.path, "exists", lambda p: p == runtime):
+                self.assertEqual(system._ydotool_socket(), runtime)
+            with mock.patch.object(system.os.path, "exists", lambda p: False):
+                self.assertEqual(system._ydotool_socket(), runtime)       # nothing running: the usual default
+            with mock.patch.dict(os.environ, {"YDOTOOL_SOCKET": "/x/sock"}):
+                self.assertEqual(system._ydotool_socket(), "/x/sock")
 
     def test_second_fix_is_skipped_while_one_runs(self):
         clip = FakeClip(clipboard={}, primary={"text/plain": b"abc"})

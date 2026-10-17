@@ -82,6 +82,10 @@ class _Linux:
         """Wait while keeping any selection we own served."""
         time.sleep(seconds)
 
+    def owns(self, sel):
+        """Do we still own the selection we took over? Helpers that cannot tell say yes."""
+        return True
+
     def mark_key_sent(self):
         """Called just before the paste key goes out: reads after this point count as the paste."""
 
@@ -173,6 +177,12 @@ class Native(_Linux):
                 snap["text/plain"] = res[2]
         log.get().info("  %s targets: %d, kept %s", sel, len(targets), sorted(snap) or "nothing")
         return snap
+
+    def owns(self, sel):
+        """Do we still own the selection we took over? (Another app may have copied something since.)"""
+        atom = self.x.conn.atom(self._SEL[sel])
+        owned = self.x.owned.get(atom)
+        return owned is not None and self.x.conn.get_selection_owner(atom) == owned[0]
 
     def restore(self, sel, snap):
         if not snap:

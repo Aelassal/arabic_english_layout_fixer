@@ -101,6 +101,19 @@ class Desktop(unittest.TestCase):
         self.assertIn("modifier state unknown", "\n".join(logs.output))
         self.assertEqual(self.pastes, ["hello"])
 
+    def test_old_clipboard_is_put_back_on_every_skip_path(self):
+        """The copied selection is ours too: skipping must never leave it in place of the user's clipboard."""
+        for label, selection, convert in (
+            ("already correct", "hello", None),                       # converts to itself: nothing to paste
+            ("whole line copied", "line of code\n", lambda t: "x"),
+            ("too long", "x" * (system.safety.MAX_CHARS + 1), lambda t: "x"),
+        ):
+            with self.subTest(label):
+                self.clip, self.selection, self.copy_presses, self.pastes = "old", selection, 0, []
+                system.fix_selection(convert or (lambda t: t))
+                self.assertEqual(self.pastes, [])
+                self.assertEqual(self.clip, "old")
+
     def test_paste_is_never_repeated(self):
         system.fix_selection(lambda t: "hello")
         self.assertEqual(len(self.pastes), 1)

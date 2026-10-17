@@ -51,7 +51,13 @@ def _chord(kb, *keys):
 
 
 def _ydotool_socket():
-    return os.environ.get("YDOTOOL_SOCKET") or f"/run/user/{os.getuid()}/.ydotool_socket"
+    """ydotoold's socket: $YDOTOOL_SOCKET, else the per-user runtime dir (Debian/Ubuntu's user service),
+    else /tmp/.ydotool_socket (ydotoold's own default, used by the upstream system service)."""
+    explicit = os.environ.get("YDOTOOL_SOCKET")
+    if explicit:
+        return explicit
+    runtime = f"/run/user/{os.getuid()}/.ydotool_socket"
+    return runtime if os.path.exists(runtime) or not os.path.exists("/tmp/.ydotool_socket") else "/tmp/.ydotool_socket"
 
 
 def _ydotool_ready():
@@ -215,7 +221,10 @@ def _fix_linux(convert, timeline=None):
         if report:
             timeline.mark("%s", report)
     finally:
-        clip.restore("clipboard", saved)
+        if clip.owns("clipboard"):
+            clip.restore("clipboard", saved)
+        else:                                             # the user copied something else meanwhile: keep it
+            timeline.mark("clipboard changed during the fix, left alone")
         holder = clip.detach()
         timeline.mark("clipboard restored%s", " (kept by background pid %d)" % holder if holder else "")
 
@@ -302,6 +311,7 @@ def _fix_desktop(convert, timeline=None):
                     break
             if text != marker:
                 timeline.mark("copy landed after %dms: %d chars", timeline.ms() - sent, len(text))
+                ours.add(text)                            # the copied selection is ours too: put the old clipboard back
                 break
             timeline.mark("copy did NOT land (waited %dms)", timeline.ms() - sent)
         if text == marker or not text.strip():

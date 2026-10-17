@@ -46,7 +46,8 @@ class Hotkey:
 
 def open_settings():
     cmd = [sys.executable] if getattr(sys, "frozen", False) else [sys.executable, "-m", "layoutfix"]
-    subprocess.Popen(cmd + ["--settings"])
+    child = subprocess.Popen(cmd + ["--settings"])
+    threading.Thread(target=child.wait, daemon=True).start()      # reap it when the window closes (no zombie)
 
 
 def _import_pystray():
@@ -98,6 +99,7 @@ def _selftest() -> int:
 
 def main():
     log.setup()
+    history.purge_expired()                     # the last conversion must not stay on disk past its 10 minutes
     if "--selftest" in sys.argv:
         sys.exit(_selftest())
     if "--once" in sys.argv:                    # for Wayland / custom shortcuts
@@ -144,8 +146,12 @@ def main():
 
     def watch_config():                         # pick up changes made in the settings window
         seen = config.last_changed()
+        ticks = 0
         while True:
             time.sleep(1)
+            ticks += 1
+            if ticks % 60 == 0:
+                history.purge_expired()
             now = config.last_changed()
             if now != seen:
                 seen = now

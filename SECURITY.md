@@ -1,7 +1,12 @@
 # Security
 
-Arabic Layout Fixer runs locally. It has no network code, no telemetry, and never writes the text
-you select to disk or to its log.
+Arabic Layout Fixer runs locally. It has no network code and no telemetry, and it never writes the text
+you select to its log. The one thing kept on disk is the **last conversion**, so the hotkey can undo it: it is
+stored in the settings folder (owner-only permissions), replaced on every fix, and deleted after 10 minutes.
+
+On Windows and macOS the selected text briefly passes through the system clipboard. If you use Windows
+Clipboard History or cloud clipboard, or a clipboard-manager app, they may record it. Turn them off before
+fixing sensitive text such as passwords or keys.
 
 ## Reporting a vulnerability
 

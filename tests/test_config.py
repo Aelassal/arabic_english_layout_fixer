@@ -40,6 +40,13 @@ class ConfigTests(unittest.TestCase):
             config.build(["shift"], "a")
         self.assertEqual(config.build(["ctrl", "shift"], "a"), "<ctrl>+<shift>+a")
 
+    def test_a_function_key_works_on_its_own_but_plain_letters_do_not(self):
+        self.assertEqual(config.build([], "f9"), "<f9>")
+        self.assertEqual(config.parse("<f9>"), ([], "f9"))
+        for bad in ["a", "7", "<space>", "<shift>+<f9>"]:
+            with self.assertRaises(ValueError):
+                config.parse(bad)
+
     def test_save_leaves_no_temp_file(self):
         config.save_hotkey("<ctrl>+<alt>+k")
         self.assertEqual([p.name for p in config.config_path().parent.iterdir()], ["config.json"])

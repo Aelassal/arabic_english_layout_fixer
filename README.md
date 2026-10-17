@@ -69,6 +69,14 @@ On GNOME the tray icon needs the AppIndicator extension; the hotkey works withou
 Tray icon → **Settings...**, tick the modifier keys (Ctrl, Alt, Win/Cmd; Shift alone is not allowed),
 pick a key, press **Save**. It takes effect immediately.
 
+The fix starts when you **let go** of the hotkey, not when you press it. The app then sends its own keys
+(copy, paste) with none of your hotkey's keys still held down, which is what makes it work reliably in browsers,
+Electron apps and chat boxes. If you keep holding the keys, it simply waits.
+
+A **function key on its own** (F1-F12) also works as a hotkey, for example **F9**. It has no modifier that can be
+held down at all. Apps still see that key too, so pick one you don't use.
+On Linux with Wayland (GNOME) you set the key in *Settings → Keyboard → Custom Shortcuts* instead.
+
 <img src="assets/settings.png" width="328" alt="Settings window">
 
 ## Run from source

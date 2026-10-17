@@ -35,7 +35,8 @@ class Hotkey:
         if system.WAYLAND:
             return
         try:
-            self.listener = HotkeyListener(hotkey, _in_thread(run_fix))
+            probe = system._held_modifiers if system.WIN or system.MAC else None    # real key state, to drop stale ones
+            self.listener = HotkeyListener(hotkey, _in_thread(run_fix), probe)
             self.listener.start()
         except Exception:
             log.get().exception("could not register %r", hotkey)

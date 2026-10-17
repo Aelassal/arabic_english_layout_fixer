@@ -243,7 +243,7 @@ def _held_modifiers():
     except Exception:
         logger().exception("could not read the modifier key state")
         return None
-    return []
+    return None                                           # not supported on this platform
 
 
 def _wait_for_hotkey_release(timeline):

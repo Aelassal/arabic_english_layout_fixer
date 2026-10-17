@@ -49,51 +49,91 @@ def base_key(key):
 
 
 class Matcher:
-    """Tracks held modifiers and says when the configured hotkey is pressed."""
+    """Tracks the *physically* held keys and says when the configured hotkey was used.
 
-    def __init__(self, hotkey: str):
+    With `fire_on_release` the chord is only armed when it is pressed, and fires once every key of it is
+    up again. The tool then starts sending its own keys (Ctrl/Cmd+C, Shift+Insert, ...) after you let go,
+    so none of the hotkey's keys can be merged into them (an app that sees Ctrl+Alt+C ignores it).
+    Events the tool injected itself (`injected`) are ignored, so they never change the tracked state."""
+
+    def __init__(self, hotkey: str, fire_on_release: bool = False):
         mods, self.key = config.parse(hotkey)
         self.mods = set(mods)
         self.held = set()
+        self.fire_on_release = fire_on_release
         self._fired = False
+        self._armed = False
+        self._main_down = False
 
-    def press(self, key) -> bool:
+    def press(self, key, injected: bool = False) -> bool:
+        if injected:
+            return False
         mod = modifier_of(key)
         if mod:
             self.held.add(mod)
             return False
-        if base_key(key) == self.key and self.held == self.mods and not self._fired:
+        if base_key(key) != self.key:
+            self._armed = False                           # another key was typed: not a hotkey press
+            return False
+        self._main_down = True
+        if self.held == self.mods and not self._fired:
             self._fired = True                            # ignore auto-repeat while held
+            if self.fire_on_release:
+                self._armed = True
+                return False
             return True
         return False
 
-    def release(self, key) -> None:
+    def release(self, key, injected: bool = False) -> bool:
+        """True when the hotkey was pressed and every key of it is now up (only with fire_on_release)."""
+        if injected:
+            return False
         mod = modifier_of(key)
         if mod:
             self.held.discard(mod)
         elif base_key(key) == self.key:
             self._fired = False
+            self._main_down = False
+        if self._armed and not self.held and not self._main_down:
+            self._armed = False
+            return True
+        return False
+
+    def resync(self, really_held) -> None:
+        """Forget modifiers the OS says are up (a release event can get lost, e.g. across a locked screen).
+        `really_held` is a list of names from system._held_modifiers(), or None when unknown. A reading
+        that lacks one of the hotkey's own modifiers is not trusted, so a wrong reading can never stop
+        the hotkey from working."""
+        if really_held is None:
+            return
+        real = {"cmd" if name == "win" else name for name in really_held}
+        if self.mods <= real:
+            self.held &= real
 
 
 class HotkeyListener:
-    def __init__(self, hotkey: str, callback):
-        self.matcher = Matcher(hotkey)
+    def __init__(self, hotkey: str, callback, state_probe=None):
+        self.matcher = Matcher(hotkey, fire_on_release=True)
         self.callback = callback
+        self.state_probe = state_probe                     # () -> modifier names physically held, or None
         self._listener = None
 
     def start(self):
         from pynput import keyboard
 
-        def on_press(key):
+        def on_press(key, injected=False):
             try:
-                if self.matcher.press(key):
-                    self.callback()
+                if self.state_probe and not injected and modifier_of(key) is None:
+                    self.matcher.resync(self.state_probe())
+                self.matcher.press(key, injected)
             except Exception:                              # an exception would stop the listener
                 log.get().exception("hotkey handler failed")
 
-        def on_release(key):
+        def on_release(key, injected=False):
             try:
-                self.matcher.release(key)
+                if self.matcher.release(key, injected):
+                    log.get().info("hotkey released: starting the fix")
+                    self.callback()
             except Exception:
                 log.get().exception("hotkey release handler failed")
 

@@ -16,7 +16,7 @@ def main():
 
     ttk.Label(frm, text="Hotkey that fixes the selected text", font=("", 12, "bold")).grid(
         row=0, column=0, columnspan=4, sticky="w")
-    ttk.Label(frm, text="Tick the modifier keys, then pick a key.").grid(
+    ttk.Label(frm, text="Tick the modifier keys, then pick a key. A function key (F1-F12) works on its own.").grid(
         row=1, column=0, columnspan=4, sticky="w", pady=(0, 12))
 
     mods, key = config.parse(config.load_hotkey())

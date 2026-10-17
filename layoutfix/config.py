@@ -38,9 +38,11 @@ def parse(hotkey: str):
             key = name
         else:
             raise ValueError(f"bad hotkey part: {part!r}")
-    if key is None or not set(mods) & {"ctrl", "alt", "cmd"}:
-        # Shift alone would trigger on every capital letter the user types.
-        raise ValueError("a hotkey needs Ctrl, Alt or Win/Cmd plus a key")
+    function_key = key is not None and key.startswith("f") and key[1:].isdigit()
+    if key is None or (not set(mods) & {"ctrl", "alt", "cmd"} and not (function_key and not mods)):
+        # Shift alone would trigger on every capital letter the user types. A function key on its own is
+        # fine: it has no modifier that could still be held down when the tool sends its own keys.
+        raise ValueError("a hotkey needs Ctrl, Alt or Win/Cmd plus a key (or a function key on its own)")
     return mods, key
 
 

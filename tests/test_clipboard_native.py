@@ -170,5 +170,38 @@ class ForkSafeLockTests(unittest.TestCase):
                 os.environ.pop("LAYOUTFIX_CONFIG_DIR")
 
 
+class EagerReadFilter(unittest.TestCase):
+    """The compositor's clipboard bridge reads our text the moment we take a selection over; that read
+    must not make the retry think the app pasted."""
+
+    def native(self, requests):
+        from types import SimpleNamespace
+        x = SimpleNamespace(data_requests_since=lambda t: [r for r in requests if r[0] >= t],
+                            own_text=lambda sel, text: True)
+        return clipboard.Native(x)
+
+    def test_read_right_after_taking_over_is_not_a_paste(self):
+        n = self.native([(10.30, "CLIPBOARD", "UTF8_STRING")])
+        n._first_key_at = 10.0
+        n._owned_at = 10.29                                   # bridge read 10 ms after we took over
+        self.assertIsNone(n.read_since_key())
+
+    def test_a_later_read_is_a_paste(self):
+        n = self.native([(10.9, "CLIPBOARD", "TEXT")])
+        n._first_key_at = 10.0
+        n._owned_at = 10.29
+        self.assertEqual(n.read_since_key(), "CLIPBOARD as TEXT")
+
+    def test_without_a_takeover_every_read_counts(self):
+        n = self.native([(10.1, "PRIMARY", "UTF8_STRING")])
+        n._first_key_at = 10.0
+        self.assertEqual(n.read_since_key(), "PRIMARY as UTF8_STRING")
+
+    def test_write_text_records_the_takeover_time(self):
+        n = self.native([])
+        n.write_text("clipboard", "x")
+        self.assertIsNotNone(n._owned_at)
+
+
 if __name__ == "__main__":
     unittest.main()

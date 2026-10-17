@@ -24,8 +24,8 @@ WAYLAND = (not MAC and not WIN) and os.environ.get("XDG_SESSION_TYPE") == "wayla
 SELECT_FIRST = "Select (highlight) some text first, then press the hotkey."
 HOTKEY_GRACE = 0.25      # seconds after the hotkey press (= process start) before we inject a key
 PASTE_WAIT = 0.6         # longest wait for the app to read our text before the clipboard is put back
-PASTE_RETRIES = 1        # paste keys sent again when nobody read our text (never once the paste landed)
-RETRY_GRACE = 0.3        # seconds between offering the selection again and the retried paste key
+PASTE_RETRIES = 2        # paste keys sent again when nobody read our text (never once the paste landed)
+RETRY_GRACE = 0.4        # seconds between offering the selection again and the retried paste key
 
 
 # ---------------------------------------------------------------- key presses

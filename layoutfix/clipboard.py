@@ -150,6 +150,7 @@ class Native(_Linux):
         self.x = selections
         self._key_sent_at = None                          # the latest paste key
         self._first_key_at = None                         # the first one: reads after it mean the paste landed
+        self._owned_at = None                             # when we last took the selections over
 
     def text(self, sel):
         return self.x.read_text(self._SEL[sel])
@@ -186,6 +187,7 @@ class Native(_Linux):
         return self.x.own(self._SEL[sel], offers)
 
     def write_text(self, sel, text):
+        self._owned_at = time.monotonic()
         return self.x.own_text(self._SEL[sel], text)
 
     def idle(self, seconds):
@@ -209,10 +211,15 @@ class Native(_Linux):
             self.x.serve(grace)                           # let the app finish reading
         return time.monotonic() - started, (f"{seen[0][1]} as {seen[0][2]}" if seen else None)
 
+    EAGER_WINDOW = 0.2                                    # reads this soon after we take over are not a paste
+
     def read_since_key(self):
+        """A read of our text since the first paste key. Right after we (re)take the selections the
+        compositor's clipboard bridge reads them at once, and that read is not the app pasting."""
         if self._first_key_at is None:
             return None
-        seen = self.x.data_requests_since(self._first_key_at)
+        seen = [r for r in self.x.data_requests_since(self._first_key_at)
+                if self._owned_at is None or not self._owned_at <= r[0] < self._owned_at + self.EAGER_WINDOW]
         return f"{seen[0][1]} as {seen[0][2]}" if seen else None
 
     def report(self):

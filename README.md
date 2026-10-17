@@ -81,9 +81,15 @@ The fix starts when you **let go** of the hotkey, not when you press it. The app
 (copy, paste) with none of your hotkey's keys still held down, which is what makes it work reliably in browsers,
 Electron apps and chat boxes. If you keep holding the keys, it simply waits.
 
-A **function key on its own** (F1-F12) also works as a hotkey, for example **F9**. It has no modifier that can be
-held down at all. Apps still see that key too, so pick one you don't use.
-On Linux with Wayland (GNOME) you set the key in *Settings → Keyboard → Custom Shortcuts* instead.
+**Recommended if the fix ever fails to paste: use a function key on its own**, for example **F8**
+(F1-F12 are allowed). It has no modifier that can be held down, so it is the most reliable choice. In Settings,
+untick every modifier, pick the key and save. Apps still see that key too, so choose one you do not use
+(Excel's F9 recalculates, for example).
+On Linux with Wayland (GNOME) you set the key in *Settings → Keyboard → Custom Shortcuts* instead, or run:
+```
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/arabic-layout-fixer/ binding 'F8'
+```
+The default stays Ctrl + Alt + A (Ctrl + Shift + A on macOS).
 
 <img src="https://raw.githubusercontent.com/Aelassal/arabic_english_layout_fixer/main/assets/settings.png" width="328" alt="Settings window">
 

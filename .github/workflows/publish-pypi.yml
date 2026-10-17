@@ -1,0 +1,46 @@
+name: Publish to PyPI
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with: { python-version: "3.12" }
+      - run: pip install build twine
+      - name: The tag must match the package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          v=$(python -c "import layoutfix; print(layoutfix.__version__)")
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME does not match version $v"; exit 1; }
+      - run: python -m build
+      - run: twine check dist/*
+      - run: pip install dist/*.whl && python -c "from layoutfix import core; assert core.fix('اثممخ') == 'hello'"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: python-package
+          path: dist/*
+
+  publish:
+    needs: build
+    # Only after the PyPI "trusted publisher" is set up and the repository variable PUBLISH_TO_PYPI is "true".
+    if: startsWith(github.ref, 'refs/tags/') && vars.PUBLISH_TO_PYPI == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write          # trusted publishing: PyPI trusts this workflow, so no password or token is stored
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: python-package
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2

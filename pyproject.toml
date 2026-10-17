@@ -6,13 +6,39 @@ build-backend = "setuptools.build_meta"
 name = "arabic-layout-fixer"
 dynamic = ["version"]
 description = "Fix text typed on the wrong keyboard layout (Arabic <-> English) with one hotkey."
-readme = "README.md"
+readme = { file = "README.md", content-type = "text/markdown" }
 license = { text = "MIT" }
+authors = [{ name = "Abdulrahman Elassal" }]
+keywords = ["arabic", "keyboard-layout", "wrong-layout", "hotkey", "tray", "productivity", "clipboard"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: X11 Applications",
+    "Environment :: MacOS X",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: Arabic",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Utilities",
+]
 requires-python = ">=3.9"
 dependencies = ["pynput>=1.7.7", "pyperclip>=1.8.2", "pystray>=0.19.5", "Pillow>=10"]
 
+[project.urls]
+Homepage = "https://github.com/Aelassal/arabic_english_layout_fixer"
+Source = "https://github.com/Aelassal/arabic_english_layout_fixer"
+Issues = "https://github.com/Aelassal/arabic_english_layout_fixer/issues"
+Releases = "https://github.com/Aelassal/arabic_english_layout_fixer/releases"
+
 [project.scripts]
 arabic-layout-fixer = "layoutfix.app:main"
+
+# starts the tray app without a console window on Windows
+[project.gui-scripts]
+arabic-layout-fixer-tray = "layoutfix.app:main"
 
 [tool.setuptools]
 packages = ["layoutfix"]

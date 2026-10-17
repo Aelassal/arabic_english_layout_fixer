@@ -4,7 +4,7 @@ Typed in Arabic by mistake (or English with the Arabic layout on)? Select the te
 **Ctrl + Alt + A** (changeable in Settings), and it is replaced with what you meant to type.
 Works in both directions and picks the direction automatically. Free and open source.
 
-![Demo: Arabic typed by mistake is fixed with one hotkey](assets/demo.gif)
+![Demo: Arabic typed by mistake is fixed with one hotkey](https://raw.githubusercontent.com/Aelassal/arabic_english_layout_fixer/main/assets/demo.gif)
 
 `اثممخ` → `hello` &nbsp;·&nbsp; `hello` → `اثممخ`
 
@@ -21,7 +21,7 @@ SHA256 checksum before installing):
 | macOS (Terminal) | `curl -fsSL https://raw.githubusercontent.com/Aelassal/arabic_english_layout_fixer/main/install.sh \| sh` |
 | Linux (terminal) | `curl -fsSL https://raw.githubusercontent.com/Aelassal/arabic_english_layout_fixer/main/install.sh \| sh` |
 
-The scripts are short, so you can read [install.sh](install.sh) and [install.ps1](install.ps1) first.
+The scripts are short, so you can read [install.sh](https://github.com/Aelassal/arabic_english_layout_fixer/blob/main/install.sh) and [install.ps1](https://github.com/Aelassal/arabic_english_layout_fixer/blob/main/install.ps1) first.
 To remove the app, run the same line with `--uninstall` (macOS/Linux: `... \| sh -s -- --uninstall`) or, on
 Windows, `$env:LAYOUTFIX_UNINSTALL=1` before it.
 
@@ -77,7 +77,7 @@ A **function key on its own** (F1-F12) also works as a hotkey, for example **F9*
 held down at all. Apps still see that key too, so pick one you don't use.
 On Linux with Wayland (GNOME) you set the key in *Settings → Keyboard → Custom Shortcuts* instead.
 
-<img src="assets/settings.png" width="328" alt="Settings window">
+<img src="https://raw.githubusercontent.com/Aelassal/arabic_english_layout_fixer/main/assets/settings.png" width="328" alt="Settings window">
 
 ## Run from source
 ```

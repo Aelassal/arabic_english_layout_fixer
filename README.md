@@ -25,6 +25,14 @@ The scripts are short, so you can read [install.sh](https://github.com/Aelassal/
 To remove the app, run the same line with `--uninstall` (macOS/Linux: `... \| sh -s -- --uninstall`) or, on
 Windows, `$env:LAYOUTFIX_UNINSTALL=1` before it.
 
+**Or with Python** (a tiny download from PyPI, the same on all three systems; also avoids the
+"unknown publisher" prompt, because nothing unsigned is run):
+```
+pipx install arabic-layout-fixer      # or: pip install arabic-layout-fixer
+arabic-layout-fixer-tray              # starts the tray app (no console window on Windows)
+```
+On Linux the Settings window needs Tk: `sudo apt install python3-tk` (Debian/Ubuntu) or `sudo dnf install python3-tkinter`.
+
 **Or download by hand** from **Releases**. Each release also lists SHA256 checksums (`SHA256SUMS.txt`).
 
 - **Windows:** run `ArabicLayoutFixer-Windows.exe` (one file, about 11 MB; `ArabicLayoutFixer-Windows.zip` is the same app as a folder, which starts faster). SmartScreen may warn "unknown publisher" because the
